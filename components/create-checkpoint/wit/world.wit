@@ -14,22 +14,20 @@ interface types {
     log-id: hash,
     record-id: hash,
   }
-}
 
-interface checkpoint-hash {
-  use types.{hash, checkpoint}
-
-  checkpoint-hash: func(checkpoint: checkpoint) -> hash
+  enum hash-errno {
+    unsupported-hash-algorithm,
+    invalid-hash,
+  }
 }
 
 interface create-checkpoint {
-  use types.{hash, checkpoint, leaf}
+  use types.{hash, checkpoint, leaf, hash-errno}
 
-  append-leafs: func(leafs: list<leaf>) -> bool
+  append-leafs: func(leafs: list<leaf>) -> result<_, hash-errno>
   create-checkpoint: func() -> result<checkpoint>
 }
 
 world checkpoints {
   export create-checkpoint
-  export checkpoint-hash
 }
