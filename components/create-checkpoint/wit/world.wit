@@ -1,0 +1,35 @@
+package ba:registry
+
+interface types {
+  type hash = string
+  type record-id = hash
+
+  record checkpoint {
+    log-length: u32,
+    log-root: hash,
+    map-root: hash,
+  }
+
+  record leaf {
+    log-id: hash,
+    record-id: hash,
+  }
+}
+
+interface checkpoint-hash {
+  use types.{hash, checkpoint}
+
+  checkpoint-hash: func(checkpoint: checkpoint) -> hash
+}
+
+interface create-checkpoint {
+  use types.{hash, checkpoint, leaf}
+
+  append-leafs: func(leafs: list<leaf>) -> bool
+  create-checkpoint: func() -> result<checkpoint>
+}
+
+world checkpoints {
+  export create-checkpoint
+  export checkpoint-hash
+}

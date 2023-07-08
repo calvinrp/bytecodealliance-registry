@@ -1,0 +1,10 @@
+[workspace]
+
+members = [
+    "create-checkpoint",
+]
+
+[workspace.dependencies]
+warg-crypto = { path = "../crates/crypto" }
+warg-transparency = { path = "../crates/transparency" }
+warg-protocol = { path = "../crates/protocol" }
