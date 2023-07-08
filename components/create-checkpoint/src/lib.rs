@@ -1,15 +1,15 @@
 #[macro_use]
 extern crate lazy_static;
 
+use bindings::ba::registry::types::{Checkpoint, HashErrno, Leaf};
 use bindings::exports::ba::registry::create_checkpoint::CreateCheckpoint;
-use bindings::ba::registry::types::{Checkpoint, Leaf, HashErrno};
 
-use warg_protocol::registry::{LogId, RecordId, LogLeaf, MapLeaf};
-use warg_transparency::map::Map;
-use warg_transparency::log::{LogBuilder, StackLog};
-use warg_crypto::hash::{Sha256, AnyHash, AnyHashError};
 use std::str::FromStr;
 use std::sync::Mutex;
+use warg_crypto::hash::{AnyHash, AnyHashError, Sha256};
+use warg_protocol::registry::{LogId, LogLeaf, MapLeaf, RecordId};
+use warg_transparency::log::{LogBuilder, StackLog};
+use warg_transparency::map::Map;
 
 pub type VerifiableLog = StackLog<Sha256, LogLeaf>;
 pub type VerifiableMap = Map<Sha256, LogId, MapLeaf>;
@@ -21,7 +21,7 @@ struct VerifiableState {
 
 lazy_static! {
     static ref VERIFIABLE_STATE: Mutex<VerifiableState> = Mutex::new({
-        VerifiableState{
+        VerifiableState {
             log: VerifiableLog::default(),
             map: VerifiableMap::default(),
         }
@@ -36,8 +36,11 @@ impl CreateCheckpoint for Component {
         for leaf in leafs {
             let log_id = LogId::from(parse_hash(&leaf.log_id)?);
             let record_id = RecordId::from(parse_hash(&leaf.record_id)?);
-            state.log.push(&LogLeaf{ log_id: log_id.clone(), record_id: record_id.clone() });
-            state.map.insert(log_id, MapLeaf{ record_id });
+            state.log.push(&LogLeaf {
+                log_id: log_id.clone(),
+                record_id: record_id.clone(),
+            });
+            state.map.insert(log_id, MapLeaf { record_id });
         }
 
         Ok(())
@@ -51,7 +54,7 @@ impl CreateCheckpoint for Component {
         let log_length = checkpoint.length() as u32;
         let map_root: AnyHash = state.map.root().clone().into();
 
-        Ok(Checkpoint{
+        Ok(Checkpoint {
             log_length,
             log_root: log_root.to_string(),
             map_root: map_root.to_string(),
@@ -101,4 +104,3 @@ bindings::export!(Component);
 //        Ok(Encode::encode(&map_checkpoint).to_string())
 //    }
 //}
-
