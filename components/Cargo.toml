@@ -1,7 +1,8 @@
 [workspace]
 
 members = [
-    "create-checkpoint",
+    "checkpoints",
+    "checkpoint-module",
 ]
 
 [workspace.dependencies]
@@ -10,3 +11,4 @@ warg-crypto = { path = "../crates/crypto" }
 warg-transparency = { path = "../crates/transparency" }
 warg-protocol = { path = "../crates/protocol" }
 lazy_static = "1.4.0"
+hex = "0.4.3"

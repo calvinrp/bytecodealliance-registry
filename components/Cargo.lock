@@ -114,6 +114,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "checkpoint-module"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "lazy_static",
+ "warg-crypto",
+ "warg-protocol",
+ "warg-transparency",
+]
+
+[[package]]
+name = "checkpoints"
+version = "0.1.0"
+dependencies = [
+ "checkpoints-bindings",
+ "hex",
+ "lazy_static",
+ "warg-crypto",
+ "warg-protocol",
+ "warg-transparency",
+ "wit-bindgen",
+]
+
+[[package]]
+name = "checkpoints-bindings"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen",
+]
+
+[[package]]
 name = "chrono"
 version = "0.4.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -145,25 +176,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a17b76ff3a4162b0b27f354a0c87015ddad39d35f9c0c36607a3bdd175dde1f1"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "create-checkpoint"
-version = "0.1.0"
-dependencies = [
- "create_checkpoint-bindings",
- "lazy_static",
- "warg-crypto",
- "warg-protocol",
- "warg-transparency",
- "wit-bindgen",
-]
-
-[[package]]
-name = "create_checkpoint-bindings"
-version = "0.1.0"
-dependencies = [
- "wit-bindgen",
 ]
 
 [[package]]
@@ -382,21 +394,6 @@ name = "heck"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
-
-[[package]]
-name = "hello-world"
-version = "0.1.0"
-dependencies = [
- "hello_world-bindings",
- "wit-bindgen",
-]
-
-[[package]]
-name = "hello_world-bindings"
-version = "0.1.0"
-dependencies = [
- "wit-bindgen",
-]
 
 [[package]]
 name = "hermit-abi"

@@ -1,12 +1,11 @@
 #[macro_use]
 extern crate lazy_static;
 
-use bindings::ba::registry::types::{Checkpoint, HashErrno, Leaf};
-use bindings::exports::ba::registry::create_checkpoint::CreateCheckpoint;
+use bindings::ba::registry::types::{Checkpoint, Leaf};
+use bindings::exports::ba::registry::compute_checkpoint::ComputeCheckpoint;
 
-use std::str::FromStr;
 use std::sync::Mutex;
-use warg_crypto::hash::{AnyHash, AnyHashError, Sha256};
+use warg_crypto::hash::{AnyHash, HashAlgorithm, Sha256};
 use warg_protocol::registry::{LogId, LogLeaf, MapLeaf, RecordId};
 use warg_transparency::log::{LogBuilder, StackLog};
 use warg_transparency::map::Map;
@@ -30,23 +29,19 @@ lazy_static! {
 
 struct Component;
 
-impl CreateCheckpoint for Component {
-    fn append_leafs(leafs: Vec<Leaf>) -> Result<(), HashErrno> {
+impl ComputeCheckpoint for Component {
+    fn append_leaf(leaf: Leaf) {
         let mut state = VERIFIABLE_STATE.lock().unwrap();
-        for leaf in leafs {
-            let log_id = LogId::from(parse_hash(&leaf.log_id)?);
-            let record_id = RecordId::from(parse_hash(&leaf.record_id)?);
-            state.log.push(&LogLeaf {
-                log_id: log_id.clone(),
-                record_id: record_id.clone(),
-            });
-            state.map.insert(log_id, MapLeaf { record_id });
-        }
-
-        Ok(())
+        let log_id = LogId::from(AnyHash::new(HashAlgorithm::Sha256, leaf.log_id));
+        let record_id = RecordId::from(AnyHash::new(HashAlgorithm::Sha256, leaf.record_id));
+        state.log.push(&LogLeaf {
+            log_id: log_id.clone(),
+            record_id: record_id.clone(),
+        });
+        state.map.insert(log_id, MapLeaf { record_id });
     }
 
-    fn create_checkpoint() -> Result<Checkpoint, ()> {
+    fn compute_checkpoint() -> Checkpoint {
         let state = VERIFIABLE_STATE.lock().unwrap();
 
         let checkpoint = state.log.checkpoint();
@@ -54,21 +49,11 @@ impl CreateCheckpoint for Component {
         let log_length = checkpoint.length() as u32;
         let map_root: AnyHash = state.map.root().clone().into();
 
-        Ok(Checkpoint {
+        Checkpoint {
             log_length,
-            log_root: log_root.to_string(),
-            map_root: map_root.to_string(),
-        })
-    }
-}
-
-fn parse_hash(hash_str: &str) -> Result<AnyHash, HashErrno> {
-    match AnyHash::from_str(&hash_str) {
-        Ok(hash) => Ok(hash),
-        Err(err) => Err(match err {
-            AnyHashError::InvalidHashAlgorithm(_) => HashErrno::UnsupportedHashAlgorithm,
-            _ => HashErrno::InvalidHash,
-        }),
+            log_root: log_root.bytes().to_vec(),
+            map_root: map_root.bytes().to_vec(),
+        }
     }
 }
 
