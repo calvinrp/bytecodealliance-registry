@@ -1,5 +1,5 @@
 [package]
-name = "create-checkpoint"
+name = "checkpoints"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 wit-bindgen = { workspace = true }
 lazy_static = { workspace = true }
+hex = { workspace = true }
 warg-crypto = { workspace = true }
 warg-protocol = { workspace = true }
 warg-transparency = { workspace = true }
