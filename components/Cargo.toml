@@ -3,6 +3,7 @@
 members = [
     "checkpoints",
     "checkpoint-module",
+    "operator-log",
 ]
 
 [workspace.dependencies]

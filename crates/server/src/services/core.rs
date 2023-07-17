@@ -237,7 +237,7 @@ impl CoreService {
     ) -> Result<InitializationData, DataStoreError> {
         let init = init_envelope(signing_key);
         let log_id = LogId::operator_log::<Sha256>();
-        let record_id = RecordId::operator_record::<Sha256>(&init);
+        let record_id = RecordId::operator_record::<Sha256>(init.content_bytes());
 
         store
             .store_operator_record(&log_id, &record_id, &init)

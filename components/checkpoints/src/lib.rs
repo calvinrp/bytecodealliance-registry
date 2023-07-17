@@ -1,8 +1,8 @@
 #[macro_use]
 extern crate lazy_static;
 
-use bindings::ba::registry::types::{Checkpoint, Leaf};
-use bindings::exports::ba::registry::compute_checkpoint::ComputeCheckpoint;
+use bindings::warg::registry::types::{Checkpoint, Leaf};
+use bindings::exports::warg::registry::compute_checkpoint::ComputeCheckpoint;
 
 use std::sync::Mutex;
 use warg_crypto::hash::{AnyHash, HashAlgorithm, Sha256};
@@ -59,7 +59,7 @@ impl ComputeCheckpoint for Component {
 
 bindings::export!(Component);
 
-//use bindings::exports::ba::registry::checkpoint_hash::{CheckpointHash, CheckpointHashErrno};
+//use bindings::exports::warg::registry::checkpoint_hash::{CheckpointHash, CheckpointHashErrno};
 //use warg_crypto::Encode;
 //use warg_protocol::registry::{LogId, RecordId, LogLeaf, MapCheckpoint, MapLeaf};
 //impl CheckpointHash for Component {

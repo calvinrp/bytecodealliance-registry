@@ -1,4 +1,4 @@
-package ba:registry
+package warg:registry
 
 interface types {
   type hash = list<u8>

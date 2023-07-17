@@ -1,4 +1,3 @@
-use crate::{operator::OperatorRecord, package::PackageRecord, ProtoEnvelope};
 use anyhow::bail;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -221,15 +220,15 @@ impl RecordId {
         self.0.algorithm()
     }
 
-    pub fn operator_record<D: SupportedDigest>(record: &ProtoEnvelope<OperatorRecord>) -> Self {
+    pub fn operator_record<D: SupportedDigest>(content_bytes: &[u8]) -> Self {
         let prefix: &[u8] = b"WARG-OPERATOR-LOG-RECORD-V0:".as_slice();
-        let hash: Hash<D> = Hash::of((prefix, record.content_bytes()));
+        let hash: Hash<D> = Hash::of((prefix, content_bytes));
         Self(hash.into())
     }
 
-    pub fn package_record<D: SupportedDigest>(record: &ProtoEnvelope<PackageRecord>) -> Self {
+    pub fn package_record<D: SupportedDigest>(content_bytes: &[u8]) -> Self {
         let prefix: &[u8] = b"WARG-PACKAGE-LOG-RECORD-V0:".as_slice();
-        let hash: Hash<D> = Hash::of((prefix, record.content_bytes()));
+        let hash: Hash<D> = Hash::of((prefix, content_bytes));
         Self(hash.into())
     }
 }

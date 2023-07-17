@@ -1,5 +1,5 @@
 [package]
-name = "checkpoints"
+name = "operator-log"
 version = "0.1.0"
 edition = "2021"
 
@@ -17,7 +17,7 @@ warg-transparency = { workspace = true }
 crate-type = ["cdylib"]
 
 [package.metadata.component]
-package = "warg:create-checkpoint"
+package = "warg:operator-log"
 
 [package.metadata.component.target]
 path = "wit"

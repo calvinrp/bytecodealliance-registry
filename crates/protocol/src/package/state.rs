@@ -234,7 +234,7 @@ impl LogState {
         envelope: &ProtoEnvelope<model::PackageRecord>,
     ) -> Result<(), ValidationError> {
         let record = envelope.as_ref();
-        let record_id = RecordId::package_record::<Sha256>(envelope);
+        let record_id = RecordId::package_record::<Sha256>(envelope.content_bytes());
 
         // Validate previous hash
         self.validate_record_hash(record)?;
@@ -599,7 +599,7 @@ mod tests {
             validator,
             LogState {
                 head: Some(Head {
-                    digest: RecordId::package_record::<Sha256>(&envelope),
+                    digest: RecordId::package_record::<Sha256>(envelope.content_bytes()),
                     timestamp,
                 }),
                 algorithm: Some(HashAlgorithm::Sha256),
@@ -647,7 +647,9 @@ mod tests {
         let timestamp1 = timestamp0 + Duration::from_secs(1);
         let content = hash_algo.digest(&[0, 1, 2, 3]);
         let record1 = model::PackageRecord {
-            prev: Some(RecordId::package_record::<Sha256>(&envelope0)),
+            prev: Some(RecordId::package_record::<Sha256>(
+                envelope0.content_bytes(),
+            )),
             version: PACKAGE_RECORD_VERSION,
             timestamp: timestamp1,
             entries: vec![model::PackageEntry::Release {
@@ -657,7 +659,7 @@ mod tests {
         };
 
         let envelope1 = ProtoEnvelope::signed_contents(&bob_priv, record1).unwrap();
-        let record_id1 = RecordId::package_record::<Sha256>(&envelope1);
+        let record_id1 = RecordId::package_record::<Sha256>(envelope1.content_bytes());
         validator.validate(&envelope1).unwrap();
 
         // At this point, the validator should consider 1.1.0 released
@@ -690,7 +692,9 @@ mod tests {
         // In envelope 2: alice revokes bobs access and yanks 1.1.0
         let timestamp2 = timestamp1 + Duration::from_secs(1);
         let record2 = model::PackageRecord {
-            prev: Some(RecordId::package_record::<Sha256>(&envelope1)),
+            prev: Some(RecordId::package_record::<Sha256>(
+                envelope1.content_bytes(),
+            )),
             version: PACKAGE_RECORD_VERSION,
             timestamp: timestamp2,
             entries: vec![
@@ -729,7 +733,7 @@ mod tests {
             LogState {
                 algorithm: Some(HashAlgorithm::Sha256),
                 head: Some(Head {
-                    digest: RecordId::package_record::<Sha256>(&envelope2),
+                    digest: RecordId::package_record::<Sha256>(envelope2.content_bytes()),
                     timestamp: timestamp2,
                 }),
                 permissions: IndexMap::from([
@@ -781,7 +785,7 @@ mod tests {
 
         let expected = LogState {
             head: Some(Head {
-                digest: RecordId::package_record::<Sha256>(&envelope),
+                digest: RecordId::package_record::<Sha256>(envelope.content_bytes()),
                 timestamp,
             }),
             algorithm: Some(HashAlgorithm::Sha256),
@@ -796,7 +800,7 @@ mod tests {
         assert_eq!(validator, expected);
 
         let record = model::PackageRecord {
-            prev: Some(RecordId::package_record::<Sha256>(&envelope)),
+            prev: Some(RecordId::package_record::<Sha256>(envelope.content_bytes())),
             version: 0,
             timestamp: SystemTime::now(),
             entries: vec![

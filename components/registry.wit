@@ -1,0 +1,146 @@
+package warg:registry
+
+interface types {
+  type hash = string
+  type record-id = hash
+
+  record timestamp {
+    seconds: s64,
+    nanos: s32,
+  }
+
+  record envelope {
+    content-bytes: list<u8>,
+    key-id: hash,
+    signature: hash,
+  }
+
+  record checkpoint {
+    log-length: u64,
+    log-root: hash,
+    map-root: hash,
+  }
+
+  record checkpoint-envelope {
+    key-id: hash,
+    signature: hash,
+    checkpoint: checkpoint,
+  }
+
+  record leaf {
+    log-id: hash,
+    record-id: hash,
+  }
+
+  record checkpoint-commit {
+    envelope: checkpoint-envelope,
+    leafs: list<leaf>,
+  }
+}
+
+interface package-log {
+  use types.{hash, record-id, timestamp, envelope}
+
+  enum package-permission {
+    release,
+    yank,
+  }
+
+  record package-init {
+    hash-algorithm: string,
+    key: hash,
+  }
+
+  record package-grant-flat {
+    key: hash,
+    permission: package-permission,
+  }
+
+  record package-revoke-flat {
+    key: hash,
+    permission: package-permission,
+  }
+
+  record package-release {
+    version: string,
+    content-hash: hash,
+  }
+
+  record package-yank {
+    version: string,
+  }
+
+  variant package-entry {
+    package-init,
+    package-grant-flat,
+    package-revoke-flat,
+    package-release,
+    package-yank,
+  }
+
+  record package-record {
+    prev: option<record-id>,
+    version: u32,
+    timestamp: timestamp,
+    entries: list<package-entry>,
+  }
+
+  record-to-bytes: func(content: package-record) -> result<list<u8>, string>
+  record-from-bytes: func(content-bytes: list<u8>) -> result<package-record, string>
+  validate: func(envelope: envelope) -> result<, string>
+}
+
+interface checkpoint-hash {
+  use types.{hash, checkpoint}
+
+  checkpoint-hash: func(checkpoint: checkpoint) -> hash
+}
+
+interface create-checkpoint {
+  use types.{hash, checkpoint, leaf}
+
+  append-leafs: func(leafs: list<leaf>) -> result<>
+  checkpoint: func() -> result<checkpoint>
+}
+
+interface generate-proofs {
+  use types.{hash, checkpoint}
+
+  variant proof-consistency-error {
+    checkpoint-not-found(hash),
+    bundle-failed(string),
+  }
+
+  variant proof-inclusion-error {
+    checkpoint-not-found(hash),
+    leaf-not-found(hash),
+    bundle-failed(string),
+  }
+
+  type proof-bundle = list<u8>
+
+  record leaf-inclusion-proofs {
+    log: proof-bundle,
+    map: proof-bundle,
+  }
+
+  // should this be log-root hash or checkpoint hash?
+  prove-consistency: func(from-log-root: hash, to-log-root: hash) -> result<proof-bundle, proof-consistency-error>
+  prove-inclusion: func(checkpoint: checkpoint, leafs: list<leaf>) -> result<leaf-inclusion-proofs, proof-inclusion-error>
+  append-leafs: func(leafs: list<leaf>) -> result<>
+}
+
+interface monitor {
+  use types.{hash, checkpoint, checkpoint-envelope, checkpoint-commit, leaf}
+
+  enum checkpoint-errno {
+    invalid-signature,
+    invalid-log-length,
+    invalid-log-root,
+    invalid-map-root,
+    invalid-key-id, // ??? Really need this???
+  }
+
+  validate: func(envelope: checkpoint-envelope) -> result<, checkpoint-errno>
+  append-leafs: func(leafs: list<leaf>) -> result<>
+}

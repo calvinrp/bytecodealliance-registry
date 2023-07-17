@@ -9,7 +9,7 @@ use crate::{pbjson_to_prost_timestamp, prost_to_pbjson_timestamp, registry::Reco
 mod model;
 mod state;
 
-pub use model::{OperatorEntry, OperatorRecord};
+pub use model::{OperatorEntry, OperatorRecord, Permission};
 pub use state::{LogState, ValidationError};
 
 /// The currently supported operator protocol version.
