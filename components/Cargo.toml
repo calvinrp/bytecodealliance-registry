@@ -5,6 +5,7 @@ members = [
     "checkpoint-module",
     "operator-log",
     "package-log",
+    "log-proofs",
 ]
 
 [workspace.dependencies]

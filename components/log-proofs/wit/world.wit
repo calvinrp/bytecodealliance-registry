@@ -1,0 +1,55 @@
+package warg:log-proofs
+
+interface types {
+  type hash = string
+  type proof-bundle = list<u8>
+  type index = u32
+
+  record leaf {
+    log-id: hash,
+    record-id: hash,
+  }
+}
+
+interface log-state {
+  use types.{leaf, index}
+
+  enum append-leaf-errno {
+    invalid-log-id,
+    invalid-record-id,
+    unexpected-failure,
+  }
+
+  append-leaf: func(leaf: leaf) -> result<index, append-leaf-errno>
+}
+
+interface log-consistency {
+  use types.{hash, leaf, proof-bundle}
+
+  enum proof-consistency-errno {
+    invalid-starting-log-length,
+    invalid-ending-log-length,
+    proof-bundle-failed,
+    log-empty,
+  }
+
+  prove-log-consistency: func(starting-log-length: u32, ending-log-length: u32) -> result<proof-bundle, proof-consistency-errno>
+}
+
+interface log-inclusion {
+  use types.{hash, leaf, proof-bundle, index}
+
+  variant proof-inclusion-error {
+    checkpoint-not-found(hash),
+    proof-bundle-failed,
+    log-empty,
+  }
+
+  prove-log-inclusion: func(log-length: u32, leaf-indices: list<index>) -> result<proof-bundle, proof-inclusion-error>
+}
+
+world log-proofs {
+  export log-state
+  export log-consistency
+  export log-inclusion
+}
