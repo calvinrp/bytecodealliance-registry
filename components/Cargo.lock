@@ -645,6 +645,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "package-log"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "lazy_static",
+ "package_log-bindings",
+ "semver",
+ "warg-crypto",
+ "warg-protocol",
+ "warg-transparency",
+ "wit-bindgen",
+]
+
+[[package]]
+name = "package_log-bindings"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen",
+]
+
+[[package]]
 name = "pbjson"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

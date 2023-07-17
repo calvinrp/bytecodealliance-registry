@@ -4,6 +4,7 @@ members = [
     "checkpoints",
     "checkpoint-module",
     "operator-log",
+    "package-log",
 ]
 
 [workspace.dependencies]
@@ -13,3 +14,4 @@ warg-transparency = { path = "../crates/transparency" }
 warg-protocol = { path = "../crates/protocol" }
 lazy_static = "1.4.0"
 hex = "0.4.3"
+semver = { version = "1.0.17", features = ["serde"] }
