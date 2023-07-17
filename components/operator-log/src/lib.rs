@@ -1,21 +1,116 @@
+#[macro_use]
+extern crate lazy_static;
+
 use bindings::exports::warg::operator_log::operator_records::{
-    EncodedOperatorRecord, OperatorDecodeErrno, OperatorEncodeErrno, OperatorEntry,
+    EncodedOperatorRecord, Envelope, OperatorDecodeErrno, OperatorEncodeErrno, OperatorEntry,
     OperatorGrantFlat, OperatorInit, OperatorPermission, OperatorRecord, OperatorRecords,
-    OperatorRevokeFlat,
+    OperatorRevokeFlat, OperatorValidationError, RecordId, UnauthorizedPermissionError,
+    UnexpectedHashAlgorithm,
 };
 use bindings::warg::operator_log::types::Timestamp;
 
 use std::str::FromStr;
+use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use warg_crypto::hash::{AnyHash, HashAlgorithm, Sha256};
-use warg_crypto::signing::PublicKey;
+use warg_crypto::signing::{PublicKey, Signature};
 use warg_crypto::{Decode, Encode};
 use warg_protocol::operator;
-use warg_protocol::registry::RecordId;
+use warg_protocol::operator::ValidationError::{
+    FirstEntryIsNotInit, IncorrectHashAlgorithm, InitialEntryAfterBeginning,
+    InitialRecordDoesNotInit, KeyIDNotRecognized, NoPreviousHashAfterInit,
+    PermissionNotFoundToRevoke, PreviousHashOnFirstRecord, ProtocolVersionNotAllowed,
+    RecordHashDoesNotMatch, SignatureError, TimestampLowerThanPrevious, UnauthorizedAction,
+};
+use warg_protocol::registry::RecordId as WargRecordId;
+
+lazy_static! {
+    static ref OPERATOR_LOG_STATE: Mutex<operator::LogState> =
+        Mutex::new(operator::LogState::new());
+}
 
 struct Component;
 
 impl OperatorRecords for Component {
+    fn append_operator_record(envelope: Envelope) -> Result<RecordId, OperatorValidationError> {
+        let signature = match Signature::from_str(&envelope.signature) {
+            Ok(signature) => signature,
+            Err(_) => return Err(OperatorValidationError::SignatureParseFailure),
+        };
+        let contents = match operator::OperatorRecord::decode(&envelope.content_bytes) {
+            Ok(rec) => rec,
+            Err(_) => return Err(OperatorValidationError::FailedToDecodeOperatorRecord),
+        };
+        let proto_envelope = warg_protocol::ProtoEnvelope::<operator::OperatorRecord> {
+            contents,
+            content_bytes: envelope.content_bytes,
+            key_id: envelope.key_id.into(),
+            signature,
+        };
+
+        let mut state = OPERATOR_LOG_STATE.lock().unwrap();
+        match state.validate(&proto_envelope) {
+            Ok(_) => match state.head() {
+                Some(head) => Ok(head.digest.to_string()),
+                None => Err(OperatorValidationError::UnexpectedValidationError),
+            },
+            Err(FirstEntryIsNotInit) => Err(OperatorValidationError::FirstEntryIsNotInit),
+            Err(InitialRecordDoesNotInit) => Err(OperatorValidationError::InitialRecordDoesNotInit),
+            Err(KeyIDNotRecognized { key_id }) => Err(OperatorValidationError::KeyIdNotRecognized(
+                key_id.to_string(),
+            )),
+            Err(InitialEntryAfterBeginning) => {
+                Err(OperatorValidationError::InitialEntryAfterBeginning)
+            }
+            Err(UnauthorizedAction {
+                key_id,
+                needed_permission,
+            }) => {
+                let permission = match needed_permission {
+                    operator::Permission::Commit => OperatorPermission::Commit,
+                    _ => return Err(OperatorValidationError::UnknownOperatorPermission),
+                };
+                Err(OperatorValidationError::UnauthorizedAction(
+                    UnauthorizedPermissionError {
+                        key_id: key_id.to_string(),
+                        permission,
+                    },
+                ))
+            }
+            Err(PermissionNotFoundToRevoke { key_id, permission }) => {
+                let permission = match permission {
+                    operator::Permission::Commit => OperatorPermission::Commit,
+                    _ => return Err(OperatorValidationError::UnknownOperatorPermission),
+                };
+                Err(OperatorValidationError::PermissionNotFoundToRevoke(
+                    UnauthorizedPermissionError {
+                        key_id: key_id.to_string(),
+                        permission,
+                    },
+                ))
+            }
+            Err(SignatureError(_)) => Err(OperatorValidationError::SignatureInvalid),
+            Err(IncorrectHashAlgorithm { found, expected }) => Err(
+                OperatorValidationError::IncorrectHashAlgorithm(UnexpectedHashAlgorithm {
+                    found: found.to_string(),
+                    expected: expected.to_string(),
+                }),
+            ),
+
+            Err(RecordHashDoesNotMatch) => Err(OperatorValidationError::RecordHashDoesNotMatch),
+            Err(PreviousHashOnFirstRecord) => {
+                Err(OperatorValidationError::PreviousHashOnFirstRecord)
+            }
+            Err(NoPreviousHashAfterInit) => Err(OperatorValidationError::NoPreviousHashAfterInit),
+            Err(ProtocolVersionNotAllowed { version }) => {
+                Err(OperatorValidationError::ProtocolVersionNotAllowed(version))
+            }
+            Err(TimestampLowerThanPrevious) => {
+                Err(OperatorValidationError::TimestampLowerThanPrevious)
+            }
+        }
+    }
+
     fn encode_operator_record(
         rec: OperatorRecord,
     ) -> Result<EncodedOperatorRecord, OperatorEncodeErrno> {
@@ -73,7 +168,7 @@ impl OperatorRecords for Component {
             });
         }
 
-        let prev: Option<RecordId> = match prev {
+        let prev: Option<WargRecordId> = match prev {
             Some(prev) => Some(prev.into()),
             None => None,
         };
@@ -87,7 +182,7 @@ impl OperatorRecords for Component {
         };
 
         let content_bytes = Encode::encode(&operator_record);
-        let record_id = RecordId::operator_record::<Sha256>(&content_bytes).to_string();
+        let record_id = WargRecordId::operator_record::<Sha256>(&content_bytes).to_string();
 
         Ok(EncodedOperatorRecord {
             content_bytes,
