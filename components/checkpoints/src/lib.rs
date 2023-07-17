@@ -58,34 +58,3 @@ impl ComputeCheckpoint for Component {
 }
 
 bindings::export!(Component);
-
-//use bindings::exports::warg::registry::checkpoint_hash::{CheckpointHash, CheckpointHashErrno};
-//use warg_crypto::Encode;
-//use warg_protocol::registry::{LogId, RecordId, LogLeaf, MapCheckpoint, MapLeaf};
-//impl CheckpointHash for Component {
-//    fn checkpoint_hash(checkpoint: Checkpoint) -> Result<String, CheckpointHashErrno> {
-//        let log_root = match AnyHash::from_str(&checkpoint.log_root) {
-//            Ok(log_root) => log_root,
-//            Err(err) => return Err(match err {
-//                AnyHashError::InvalidHashAlgorithm(_) => CheckpointHashErrno::LogRootUnsupportedHashAlgorithm,
-//                _ => CheckpointHashErrno::LogRootInvalid,
-//            }),
-//        };
-//
-//        let map_root = match AnyHash::from_str(&checkpoint.map_root) {
-//            Ok(map_root) => map_root,
-//            Err(err) => return Err(match err {
-//                AnyHashError::InvalidHashAlgorithm(_) => CheckpointHashErrno::MapRootUnsupportedHashAlgorithm,
-//                _ => CheckpointHashErrno::MapRootInvalid,
-//            }),
-//        };
-//
-//        let map_checkpoint = MapCheckpoint{
-//            log_length: checkpoint.log_length,
-//            log_root,
-//            map_root,
-//        };
-//
-//        Ok(Encode::encode(&map_checkpoint).to_string())
-//    }
-//}
