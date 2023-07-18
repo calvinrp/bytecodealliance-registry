@@ -130,7 +130,7 @@ version = "0.1.0"
 dependencies = [
  "checkpoints-bindings",
  "hex",
- "lazy_static",
+ "sync-unsafe-cell",
  "warg-crypto",
  "warg-protocol",
  "warg-transparency",
@@ -655,8 +655,8 @@ name = "operator-log"
 version = "0.1.0"
 dependencies = [
  "hex",
- "lazy_static",
  "operator_log-bindings",
+ "sync-unsafe-cell",
  "warg-crypto",
  "warg-protocol",
  "warg-transparency",
@@ -687,9 +687,9 @@ name = "package-log"
 version = "0.1.0"
 dependencies = [
  "hex",
- "lazy_static",
  "package_log-bindings",
  "semver",
+ "sync-unsafe-cell",
  "warg-crypto",
  "warg-protocol",
  "warg-transparency",

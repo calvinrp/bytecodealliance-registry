@@ -5,12 +5,30 @@ use bindings::exports::warg::log_proofs::generate_log_proofs::{
 use bindings::warg::log_proofs::types::{Index, Leaf, ProofBundle};
 
 use std::str::FromStr;
+use std::unreachable;
 use sync_unsafe_cell::SyncUnsafeCell;
 use warg_crypto::hash::{AnyHash, Sha256};
 use warg_protocol::registry::{LogId, LogLeaf, RecordId};
 use warg_transparency::log::{LogBuilder, LogData, LogProofBundle, Node, VecLog};
 
-static mut VEC_LOG: SyncUnsafeCell<Option<VecLog<Sha256, LogLeaf>>> = SyncUnsafeCell::new(None);
+type Log = VecLog<Sha256, LogLeaf>;
+
+static mut VEC_LOG: SyncUnsafeCell<Option<Log>> = SyncUnsafeCell::new(None);
+
+fn get_log() -> &'static mut Log {
+    match unsafe { VEC_LOG.get_mut() } {
+        Some(log) => log,
+        None => {
+            unsafe { *VEC_LOG.get() = Some(Log::default()) };
+            unsafe {
+                match VEC_LOG.get_mut() {
+                    Some(log) => log,
+                    None => unreachable!(),
+                }
+            }
+        }
+    }
+}
 
 struct Component;
 
@@ -25,19 +43,8 @@ impl GenerateLogProofs for Component {
             Err(_) => return Err(AppendLeafErrno::InvalidRecordId),
         };
         let leaf = LogLeaf { log_id, record_id };
-        let vec_log = match unsafe { VEC_LOG.get_mut() } {
-            Some(vec_log) => vec_log,
-            None => {
-                unsafe { *VEC_LOG.get() = Some(VecLog::default()) };
-                unsafe {
-                    match VEC_LOG.get_mut() {
-                        Some(vec_log) => vec_log,
-                        None => return Err(AppendLeafErrno::UnexpectedFailure),
-                    }
-                }
-            }
-        };
-        let node = vec_log.push(&leaf);
+        let log = get_log();
+        let node = log.push(&leaf);
         Ok(node.0 as u32)
     }
 

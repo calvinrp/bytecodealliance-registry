@@ -5,14 +5,30 @@ use bindings::exports::warg::map_proofs::generate_map_proofs::{
 use bindings::warg::map_proofs::types::{Hash, Leaf, ProofBundle};
 
 use std::str::FromStr;
+use std::unreachable;
 use sync_unsafe_cell::SyncUnsafeCell;
 use warg_crypto::hash::{AnyHash, Sha256};
 use warg_protocol::registry::{LogId, MapLeaf, RecordId};
 use warg_transparency::map::{Map, MapProofBundle};
 
-pub type VerifiableMap = Map<Sha256, LogId, MapLeaf>;
+type VerifiableMap = Map<Sha256, LogId, MapLeaf>;
 
 static mut MAP: SyncUnsafeCell<Option<VerifiableMap>> = SyncUnsafeCell::new(None);
+
+fn get_map() -> &'static mut VerifiableMap {
+    match unsafe { MAP.get_mut() } {
+        Some(map) => map,
+        None => {
+            unsafe { *MAP.get() = Some(VerifiableMap::default()) };
+            unsafe {
+                match MAP.get_mut() {
+                    Some(map) => map,
+                    None => unreachable!(),
+                }
+            }
+        }
+    }
+}
 
 struct Component;
 
@@ -27,19 +43,7 @@ impl GenerateMapProofs for Component {
             Err(_) => return Err(AppendLeafErrno::InvalidRecordId),
         };
 
-        let map = match unsafe { MAP.get_mut() } {
-            Some(map) => map,
-            None => {
-                unsafe { *MAP.get() = Some(VerifiableMap::default()) };
-                unsafe {
-                    match MAP.get_mut() {
-                        Some(map) => map,
-                        None => return Err(AppendLeafErrno::UnexpectedFailure),
-                    }
-                }
-            }
-        };
-
+        let map = get_map();
         unsafe { *MAP.get() = Some(map.insert(log_id, MapLeaf { record_id })) };
         Ok(())
     }

@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate lazy_static;
-
 use bindings::exports::warg::package_log::package_records::{
     EncodedPackageRecord, Envelope, PackageDecodeErrno, PackageEncodeErrno, PackageEntry,
     PackageGrantFlat, PackageInit, PackagePermission, PackageRecord, PackageRecords,
@@ -11,7 +8,8 @@ use bindings::warg::package_log::types::Timestamp;
 
 use semver::Version;
 use std::str::FromStr;
-use std::sync::Mutex;
+use std::unreachable;
+use sync_unsafe_cell::SyncUnsafeCell;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use warg_crypto::hash::{AnyHash, HashAlgorithm, Sha256};
 use warg_crypto::signing::{PublicKey, Signature};
@@ -26,8 +24,21 @@ use warg_protocol::package::ValidationError::{
 };
 use warg_protocol::registry::RecordId as WargRecordId;
 
-lazy_static! {
-    static ref PACKAGE_LOG_STATE: Mutex<package::LogState> = Mutex::new(package::LogState::new());
+static mut STATE: SyncUnsafeCell<Option<package::LogState>> = SyncUnsafeCell::new(None);
+
+fn get_state() -> &'static mut package::LogState {
+    match unsafe { STATE.get_mut() } {
+        Some(state) => state,
+        None => {
+            unsafe { *STATE.get() = Some(package::LogState::default()) };
+            unsafe {
+                match STATE.get_mut() {
+                    Some(state) => state,
+                    None => unreachable!(),
+                }
+            }
+        }
+    }
 }
 
 struct Component;
@@ -49,7 +60,7 @@ impl PackageRecords for Component {
             signature,
         };
 
-        let mut state = PACKAGE_LOG_STATE.lock().unwrap();
+        let state = get_state();
         match state.validate(&proto_envelope) {
             Ok(_) => match state.head() {
                 Some(head) => Ok(head.digest.to_string()),

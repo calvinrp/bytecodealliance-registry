@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate lazy_static;
-
 use bindings::exports::warg::operator_log::operator_records::{
     EncodedOperatorRecord, Envelope, OperatorDecodeErrno, OperatorEncodeErrno, OperatorEntry,
     OperatorGrantFlat, OperatorInit, OperatorPermission, OperatorRecord, OperatorRecords,
@@ -10,8 +7,9 @@ use bindings::exports::warg::operator_log::operator_records::{
 use bindings::warg::operator_log::types::Timestamp;
 
 use std::str::FromStr;
-use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::unreachable;
+use sync_unsafe_cell::SyncUnsafeCell;
 use warg_crypto::hash::{AnyHash, HashAlgorithm, Sha256};
 use warg_crypto::signing::{PublicKey, Signature};
 use warg_crypto::{Decode, Encode};
@@ -24,9 +22,21 @@ use warg_protocol::operator::ValidationError::{
 };
 use warg_protocol::registry::RecordId as WargRecordId;
 
-lazy_static! {
-    static ref OPERATOR_LOG_STATE: Mutex<operator::LogState> =
-        Mutex::new(operator::LogState::new());
+static mut STATE: SyncUnsafeCell<Option<operator::LogState>> = SyncUnsafeCell::new(None);
+
+fn get_state() -> &'static mut operator::LogState {
+    match unsafe { STATE.get_mut() } {
+        Some(state) => state,
+        None => {
+            unsafe { *STATE.get() = Some(operator::LogState::default()) };
+            unsafe {
+                match STATE.get_mut() {
+                    Some(state) => state,
+                    None => unreachable!(),
+                }
+            }
+        }
+    }
 }
 
 struct Component;
@@ -48,7 +58,7 @@ impl OperatorRecords for Component {
             signature,
         };
 
-        let mut state = OPERATOR_LOG_STATE.lock().unwrap();
+        let state = get_state();
         match state.validate(&proto_envelope) {
             Ok(_) => match state.head() {
                 Some(head) => Ok(head.digest.to_string()),

@@ -1,7 +1,7 @@
 package warg:registry
 
 interface types {
-  type hash = list<u8>
+  type hash = string
   type record-id = hash
 
   record checkpoint {
@@ -19,8 +19,13 @@ interface types {
 interface compute-checkpoint {
   use types.{hash, checkpoint, leaf}
 
-  append-leaf: func(leaf: leaf)
-  compute-checkpoint: func() -> checkpoint
+  enum append-leaf-errno {
+    invalid-log-id,
+    invalid-record-id,
+  }
+
+  append-leaf: func(leaf: leaf) -> result<_, append-leaf-errno>
+  compute-checkpoint: func() -> result<checkpoint>
 }
 
 world checkpoints {

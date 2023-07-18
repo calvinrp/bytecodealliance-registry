@@ -7,9 +7,9 @@ edition = "2021"
 
 [dependencies]
 wit-bindgen = { workspace = true }
-lazy_static = { workspace = true }
 hex = { workspace = true }
 semver = { workspace = true }
+sync-unsafe-cell = { workspace = true }
 warg-crypto = { workspace = true }
 warg-protocol = { workspace = true }
 warg-transparency = { workspace = true }
