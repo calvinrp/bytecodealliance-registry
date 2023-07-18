@@ -25,7 +25,6 @@ impl GenerateLogProofs for Component {
             Err(_) => return Err(AppendLeafErrno::InvalidRecordId),
         };
         let leaf = LogLeaf{ log_id, record_id };
-        //let mut vec_log = VEC_LOG.lock().unwrap();
         let vec_log = match unsafe { VEC_LOG.get_mut() } {
             Some(vec_log) => vec_log,
             None => {
@@ -43,7 +42,6 @@ impl GenerateLogProofs for Component {
     }
 
     fn prove_log_consistency(starting_log_length: u32, ending_log_length: u32) -> Result<ProofBundle, ProofConsistencyErrno> {
-        //let mut vec_log = VEC_LOG.lock().unwrap();
         let vec_log = match unsafe { VEC_LOG.get_mut() } {
             Some(vec_log) => vec_log,
             None => return Err(ProofConsistencyErrno::LogEmpty),
