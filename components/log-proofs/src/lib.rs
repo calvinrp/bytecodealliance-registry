@@ -1,16 +1,16 @@
-use bindings::exports::warg::log_proofs::generate_log_proofs::{AppendLeafErrno, ProofConsistencyErrno, ProofInclusionError, GenerateLogProofs};
+use bindings::exports::warg::log_proofs::generate_log_proofs::{
+    AppendLeafErrno, GenerateLogProofs, ProofConsistencyErrno, ProofInclusionError,
+};
 
-use bindings::warg::log_proofs::types::{Leaf, ProofBundle, Index};
+use bindings::warg::log_proofs::types::{Index, Leaf, ProofBundle};
 
 use std::str::FromStr;
 use sync_unsafe_cell::SyncUnsafeCell;
 use warg_crypto::hash::{AnyHash, Sha256};
-use warg_protocol::registry::{LogLeaf, RecordId, LogId};
-use warg_transparency::log::{VecLog, LogBuilder, LogProofBundle, LogData, Node};
+use warg_protocol::registry::{LogId, LogLeaf, RecordId};
+use warg_transparency::log::{LogBuilder, LogData, LogProofBundle, Node, VecLog};
 
-static mut VEC_LOG: SyncUnsafeCell<Option<VecLog<Sha256, LogLeaf>>> = SyncUnsafeCell::new(
-    None
-);
+static mut VEC_LOG: SyncUnsafeCell<Option<VecLog<Sha256, LogLeaf>>> = SyncUnsafeCell::new(None);
 
 struct Component;
 
@@ -24,7 +24,7 @@ impl GenerateLogProofs for Component {
             Ok(record_id) => RecordId::from(record_id),
             Err(_) => return Err(AppendLeafErrno::InvalidRecordId),
         };
-        let leaf = LogLeaf{ log_id, record_id };
+        let leaf = LogLeaf { log_id, record_id };
         let vec_log = match unsafe { VEC_LOG.get_mut() } {
             Some(vec_log) => vec_log,
             None => {
@@ -32,7 +32,7 @@ impl GenerateLogProofs for Component {
                 unsafe {
                     match VEC_LOG.get_mut() {
                         Some(vec_log) => vec_log,
-                        None => return Err(AppendLeafErrno::UnexpectedFailure)
+                        None => return Err(AppendLeafErrno::UnexpectedFailure),
                     }
                 }
             }
@@ -41,19 +41,26 @@ impl GenerateLogProofs for Component {
         Ok(node.0 as u32)
     }
 
-    fn prove_log_consistency(starting_log_length: u32, ending_log_length: u32) -> Result<ProofBundle, ProofConsistencyErrno> {
+    fn prove_log_consistency(
+        starting_log_length: u32,
+        ending_log_length: u32,
+    ) -> Result<ProofBundle, ProofConsistencyErrno> {
         let vec_log = match unsafe { VEC_LOG.get_mut() } {
             Some(vec_log) => vec_log,
             None => return Err(ProofConsistencyErrno::LogEmpty),
         };
-        let proof = vec_log.prove_consistency(starting_log_length as usize, ending_log_length as usize);
+        let proof =
+            vec_log.prove_consistency(starting_log_length as usize, ending_log_length as usize);
         match LogProofBundle::bundle(vec![proof], vec![], vec_log) {
             Ok(bundle) => Ok(bundle.encode()),
             Err(_) => Err(ProofConsistencyErrno::ProofBundleFailed),
         }
     }
 
-    fn prove_log_inclusion(log_length: u32, leaf_indices: Vec<u32>) -> Result<ProofBundle, ProofInclusionError> {
+    fn prove_log_inclusion(
+        log_length: u32,
+        leaf_indices: Vec<u32>,
+    ) -> Result<ProofBundle, ProofInclusionError> {
         let vec_log = match unsafe { VEC_LOG.get_mut() } {
             Some(vec_log) => vec_log,
             None => return Err(ProofInclusionError::LogEmpty),
