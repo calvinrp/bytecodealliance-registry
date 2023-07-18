@@ -582,6 +582,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "map-proofs"
+version = "0.1.0"
+dependencies = [
+ "map_proofs-bindings",
+ "sync-unsafe-cell",
+ "warg-crypto",
+ "warg-protocol",
+ "warg-transparency",
+ "wit-bindgen",
+]
+
+[[package]]
+name = "map_proofs-bindings"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen",
+]
+
+[[package]]
 name = "memchr"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

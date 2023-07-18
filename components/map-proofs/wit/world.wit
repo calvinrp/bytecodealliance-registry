@@ -1,0 +1,38 @@
+package warg:map-proofs
+
+interface types {
+  type hash = string
+  type proof-bundle = list<u8>
+
+  record leaf {
+    log-id: hash,
+    record-id: hash,
+  }
+}
+
+interface generate-map-proofs {
+  use types.{hash, leaf, proof-bundle}
+
+  enum append-leaf-errno {
+    invalid-log-id,
+    invalid-record-id,
+    unexpected-failure,
+  }
+
+  append-leaf: func(leaf: leaf) -> result<_, append-leaf-errno>
+
+  variant proof-inclusion-error {
+    invalid-map-checkpoint,
+    invalid-log-id(hash),
+    invalid-record-id(hash),
+    log-id-not-found(hash),
+    map-checkpoint-does-not-match,
+    map-empty,
+  }
+
+  prove-map-inclusion: func(map-checkpoint: hash, leafs: list<leaf>) -> result<proof-bundle, proof-inclusion-error>
+}
+
+world map-proofs {
+  export generate-map-proofs
+}

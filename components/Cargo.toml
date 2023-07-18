@@ -6,6 +6,7 @@ members = [
     "operator-log",
     "package-log",
     "log-proofs",
+    "map-proofs",
 ]
 
 [workspace.dependencies]
