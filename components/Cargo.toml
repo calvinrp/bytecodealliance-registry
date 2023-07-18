@@ -2,7 +2,6 @@
 
 members = [
     "checkpoints",
-    "checkpoint-module",
     "operator-log",
     "package-log",
     "log-proofs",
