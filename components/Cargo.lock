@@ -534,9 +534,8 @@ checksum = "b06a4cde4c0f271a446782e3eff8de789548ce57dbc8eca9292c27f4a42004b4"
 name = "log-proofs"
 version = "0.1.0"
 dependencies = [
- "hex",
- "lazy_static",
  "log_proofs-bindings",
+ "sync-unsafe-cell",
  "warg-crypto",
  "warg-protocol",
  "warg-transparency",
@@ -1120,6 +1119,12 @@ dependencies = [
  "quote",
  "unicode-ident",
 ]
+
+[[package]]
+name = "sync-unsafe-cell"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8deaecba5382c095cb432cd1e21068dadb144208f057b13720e76bf89749beb4"
 
 [[package]]
 name = "tempfile"

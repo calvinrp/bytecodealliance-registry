@@ -16,3 +16,4 @@ warg-protocol = { path = "../crates/protocol" }
 lazy_static = "1.4.0"
 hex = "0.4.3"
 semver = { version = "1.0.17", features = ["serde"] }
+sync-unsafe-cell = "0.1.1"

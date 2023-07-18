@@ -11,8 +11,8 @@ interface types {
   }
 }
 
-interface log-state {
-  use types.{leaf, index}
+interface generate-log-proofs {
+  use types.{hash, leaf, proof-bundle, index}
 
   enum append-leaf-errno {
     invalid-log-id,
@@ -21,10 +21,6 @@ interface log-state {
   }
 
   append-leaf: func(leaf: leaf) -> result<index, append-leaf-errno>
-}
-
-interface log-consistency {
-  use types.{hash, leaf, proof-bundle}
 
   enum proof-consistency-errno {
     invalid-starting-log-length,
@@ -34,10 +30,6 @@ interface log-consistency {
   }
 
   prove-log-consistency: func(starting-log-length: u32, ending-log-length: u32) -> result<proof-bundle, proof-consistency-errno>
-}
-
-interface log-inclusion {
-  use types.{hash, leaf, proof-bundle, index}
 
   variant proof-inclusion-error {
     checkpoint-not-found(hash),
@@ -49,7 +41,5 @@ interface log-inclusion {
 }
 
 world log-proofs {
-  export log-state
-  export log-consistency
-  export log-inclusion
+  export generate-log-proofs
 }

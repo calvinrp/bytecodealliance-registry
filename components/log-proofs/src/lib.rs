@@ -1,24 +1,12 @@
-#![feature(sync_unsafe_cell)]
-//#[macro_use]
-//extern crate lazy_static;
-
-use bindings::exports::warg::log_proofs::log_state::{AppendLeafErrno, LogState};
-use bindings::exports::warg::log_proofs::log_consistency::{ProofConsistencyErrno, LogConsistency};
-use bindings::exports::warg::log_proofs::log_inclusion::{ProofInclusionError, LogInclusion};
+use bindings::exports::warg::log_proofs::generate_log_proofs::{AppendLeafErrno, ProofConsistencyErrno, ProofInclusionError, GenerateLogProofs};
 
 use bindings::warg::log_proofs::types::{Leaf, ProofBundle, Index};
 
 use std::str::FromStr;
-//use std::sync::Mutex;
-use std::cell::SyncUnsafeCell;
+use sync_unsafe_cell::SyncUnsafeCell;
 use warg_crypto::hash::{AnyHash, Sha256};
 use warg_protocol::registry::{LogLeaf, RecordId, LogId};
 use warg_transparency::log::{VecLog, LogBuilder, LogProofBundle, LogData, Node};
-
-//lazy_static! {
-//    static ref VEC_LOG: Mutex<VecLog<Sha256, LogLeaf>> =
-//        Mutex::new(VecLog::default());
-//}
 
 static mut VEC_LOG: SyncUnsafeCell<Option<VecLog<Sha256, LogLeaf>>> = SyncUnsafeCell::new(
     None
@@ -26,7 +14,7 @@ static mut VEC_LOG: SyncUnsafeCell<Option<VecLog<Sha256, LogLeaf>>> = SyncUnsafe
 
 struct Component;
 
-impl LogState for Component {
+impl GenerateLogProofs for Component {
     fn append_leaf(leaf: Leaf) -> Result<Index, AppendLeafErrno> {
         let log_id = match AnyHash::from_str(&leaf.log_id) {
             Ok(log_id) => LogId::from(log_id),
@@ -53,9 +41,7 @@ impl LogState for Component {
         let node = vec_log.push(&leaf);
         Ok(node.0 as u32)
     }
-}
 
-impl LogConsistency for Component {
     fn prove_log_consistency(starting_log_length: u32, ending_log_length: u32) -> Result<ProofBundle, ProofConsistencyErrno> {
         //let mut vec_log = VEC_LOG.lock().unwrap();
         let vec_log = match unsafe { VEC_LOG.get_mut() } {
@@ -68,9 +54,7 @@ impl LogConsistency for Component {
             Err(_) => Err(ProofConsistencyErrno::ProofBundleFailed),
         }
     }
-}
 
-impl LogInclusion for Component {
     fn prove_log_inclusion(log_length: u32, leaf_indices: Vec<u32>) -> Result<ProofBundle, ProofInclusionError> {
         let vec_log = match unsafe { VEC_LOG.get_mut() } {
             Some(vec_log) => vec_log,
