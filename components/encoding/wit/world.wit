@@ -1,0 +1,6 @@
+package warg:encoding
+
+world encoding {
+  export encode-base64: func(content: list<u8>) -> string
+  export decode-base64: func(encoded: string) -> result<list<u8>>
+}

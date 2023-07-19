@@ -288,6 +288,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "encoding"
+version = "0.1.0"
+dependencies = [
+ "base64 0.21.2",
+ "encoding-bindings",
+ "hex",
+ "wit-bindgen",
+]
+
+[[package]]
+name = "encoding-bindings"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen",
+]
+
+[[package]]
 name = "errno"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

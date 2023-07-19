@@ -6,6 +6,7 @@ members = [
     "package-log",
     "log-proofs",
     "map-proofs",
+    "encoding",
 ]
 
 [workspace.dependencies]
@@ -13,6 +14,7 @@ wit-bindgen = { version = "0.8.0", default_features = false }
 warg-crypto = { path = "../crates/crypto" }
 warg-transparency = { path = "../crates/transparency" }
 warg-protocol = { path = "../crates/protocol" }
+base64 = "0.21.2"
 lazy_static = "1.4.0"
 hex = "0.4.3"
 semver = { version = "1.0.17", features = ["serde"] }

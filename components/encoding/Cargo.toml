@@ -1,0 +1,22 @@
+[package]
+name = "encoding"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+wit-bindgen = { workspace = true }
+hex = { workspace = true }
+base64 = { workspace = true }
+
+[lib]
+crate-type = ["cdylib"]
+
+[package.metadata.component]
+package = "warg:encoding"
+
+[package.metadata.component.target]
+path = "wit"
+
+[package.metadata.component.dependencies]
