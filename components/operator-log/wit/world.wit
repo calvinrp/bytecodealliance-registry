@@ -100,6 +100,8 @@ interface operator-records {
     content-bytes: list<u8>,
   }
 
+  log-id: func() -> hash
+
   encode-operator-record: func(rec: operator-record) -> result<encoded-operator-record, operator-encode-errno>
   decode-operator-record: func(content-bytes: list<u8>) -> result<operator-record, operator-decode-errno>
 

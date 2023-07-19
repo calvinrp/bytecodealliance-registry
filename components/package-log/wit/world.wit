@@ -118,6 +118,12 @@ interface package-records {
     unknown-package-permission,
   }
 
+  enum log-id-errno {
+    invalid-package-name,
+  }
+
+  log-id: func(name: string) -> result<hash, log-id-errno>
+
   encode-package-record: func(rec: package-record) -> result<encoded-package-record, package-encode-errno>
   decode-package-record: func(content-bytes: list<u8>) -> result<package-record, package-decode-errno>
 

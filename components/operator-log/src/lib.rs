@@ -4,7 +4,7 @@ use bindings::exports::warg::operator_log::operator_records::{
     OperatorRevokeFlat, OperatorValidationError, RecordId, UnauthorizedPermissionError,
     UnexpectedHashAlgorithm,
 };
-use bindings::warg::operator_log::types::Timestamp;
+use bindings::warg::operator_log::types::{Timestamp, Hash};
 
 use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -20,7 +20,25 @@ use warg_protocol::operator::ValidationError::{
     PermissionNotFoundToRevoke, PreviousHashOnFirstRecord, ProtocolVersionNotAllowed,
     RecordHashDoesNotMatch, SignatureError, TimestampLowerThanPrevious, UnauthorizedAction,
 };
-use warg_protocol::registry::RecordId as WargRecordId;
+use warg_protocol::registry::{RecordId as WargRecordId, LogId as WargLogId};
+
+static mut LOG_ID: SyncUnsafeCell<Option<String>> = SyncUnsafeCell::new(None);
+
+fn get_log_id() -> &'static str {
+    match unsafe { LOG_ID.get_mut() } {
+        Some(log_id) => log_id,
+        None => {
+            unsafe { *LOG_ID.get() = Some(WargLogId::operator_log::<Sha256>().to_string()) };
+            unsafe {
+                match LOG_ID.get_mut() {
+                    Some(log_id) => log_id,
+                    None => unreachable!(),
+                }
+            }
+        }
+    }
+}
+
 
 static mut STATE: SyncUnsafeCell<Option<operator::LogState>> = SyncUnsafeCell::new(None);
 
@@ -42,6 +60,10 @@ fn get_state() -> &'static mut operator::LogState {
 struct Component;
 
 impl OperatorRecords for Component {
+    fn log_id() -> Hash {
+        get_log_id().to_string()
+    }
+
     fn append_operator_record(envelope: Envelope) -> Result<RecordId, OperatorValidationError> {
         let signature = match Signature::from_str(&envelope.signature) {
             Ok(signature) => signature,

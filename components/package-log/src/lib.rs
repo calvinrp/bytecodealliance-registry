@@ -2,9 +2,9 @@ use bindings::exports::warg::package_log::package_records::{
     EncodedPackageRecord, Envelope, PackageDecodeErrno, PackageEncodeErrno, PackageEntry,
     PackageGrantFlat, PackageInit, PackagePermission, PackageRecord, PackageRecords,
     PackageRelease, PackageRevokeFlat, PackageValidationError, PackageYank, RecordId,
-    UnauthorizedPermissionError, UnexpectedHashAlgorithm,
+    UnauthorizedPermissionError, UnexpectedHashAlgorithm, LogIdErrno,
 };
-use bindings::warg::package_log::types::Timestamp;
+use bindings::warg::package_log::types::{Timestamp, Hash};
 
 use semver::Version;
 use std::str::FromStr;
@@ -22,7 +22,7 @@ use warg_protocol::package::ValidationError::{
     RecordHashDoesNotMatch, ReleaseOfReleased, SignatureError, TimestampLowerThanPrevious,
     UnauthorizedAction, YankOfUnreleased, YankOfYanked,
 };
-use warg_protocol::registry::RecordId as WargRecordId;
+use warg_protocol::registry::{RecordId as WargRecordId, LogId as WargLogId, PackageId as WargPackageId};
 
 static mut STATE: SyncUnsafeCell<Option<package::LogState>> = SyncUnsafeCell::new(None);
 
@@ -44,6 +44,13 @@ fn get_state() -> &'static mut package::LogState {
 struct Component;
 
 impl PackageRecords for Component {
+    fn log_id(name: String) -> Result<Hash, LogIdErrno> {
+        match WargPackageId::new(name) {
+            Ok(package_id) => Ok(WargLogId::package_log::<Sha256>(&package_id).to_string()),
+            Err(_) => Err(LogIdErrno::InvalidPackageName),
+        }
+    }
+
     fn append_package_record(envelope: Envelope) -> Result<RecordId, PackageValidationError> {
         let signature = match Signature::from_str(&envelope.signature) {
             Ok(signature) => signature,
