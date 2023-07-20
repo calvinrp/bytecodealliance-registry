@@ -5,7 +5,7 @@ use std::str::FromStr;
 use std::unreachable;
 use sync_unsafe_cell::SyncUnsafeCell;
 use warg_crypto::hash::{AnyHash, Sha256};
-use warg_protocol::registry::{LogId, LogLeaf, MapLeaf, RecordId};
+use warg_protocol::registry::{LogId, LogLeaf, MapLeaf, RecordId, MAP_CHECKPOINT_SIGNING_PREFIX};
 use warg_transparency::log::{LogBuilder, StackLog};
 use warg_transparency::map::Map;
 
@@ -47,6 +47,10 @@ fn get_log() -> &'static mut VerifiableLog {
 struct Component;
 
 impl ComputeCheckpoint for Component {
+    fn signing_prefix() -> Vec<u8> {
+        MAP_CHECKPOINT_SIGNING_PREFIX.to_vec()
+    }
+
     fn append_leaf(leaf: Leaf) -> Result<(), AppendLeafErrno> {
         let log_id = match AnyHash::from_str(&leaf.log_id) {
             Ok(log_id) => LogId::from(log_id),

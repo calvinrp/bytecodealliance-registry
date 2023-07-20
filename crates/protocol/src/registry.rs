@@ -15,8 +15,10 @@ pub struct MapCheckpoint {
     pub map_root: AnyHash,
 }
 
+pub const MAP_CHECKPOINT_SIGNING_PREFIX: &'static [u8] = b"WARG-MAP-CHECKPOINT-SIGNATURE-V0";
+
 impl Signable for MapCheckpoint {
-    const PREFIX: &'static [u8] = b"WARG-MAP-CHECKPOINT-SIGNATURE-V0";
+    const PREFIX: &'static [u8] = MAP_CHECKPOINT_SIGNING_PREFIX;
 }
 
 impl prefix::VisitPrefixEncode for MapCheckpoint {

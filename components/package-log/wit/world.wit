@@ -123,11 +123,12 @@ interface package-records {
   }
 
   log-id: func(name: string) -> result<hash, log-id-errno>
+  signing-prefix: func() -> list<u8>
 
-  encode-package-record: func(rec: package-record) -> result<encoded-package-record, package-encode-errno>
-  decode-package-record: func(content-bytes: list<u8>) -> result<package-record, package-decode-errno>
+  encode: func(rec: package-record) -> result<encoded-package-record, package-encode-errno>
+  decode: func(content-bytes: list<u8>) -> result<package-record, package-decode-errno>
 
-  append-package-record: func(envelope: envelope) -> result<record-id, package-validation-error>
+  append: func(envelope: envelope) -> result<record-id, package-validation-error>
 }
 
 world package-log {

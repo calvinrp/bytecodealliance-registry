@@ -3,4 +3,9 @@ package warg:encoding
 world encoding {
   export encode-base64: func(content: list<u8>) -> string
   export decode-base64: func(encoded: string) -> result<list<u8>>
+
+  export key-id: func(public-key: string) -> result<string>
+
+  export signature-from-fixed-width-to-der: func(src: list<u8>) -> result<list<u8>>
+  export signature-from-der-to-fixed-width: func(src: list<u8>) -> result<list<u8>>
 }

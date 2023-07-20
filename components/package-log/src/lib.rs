@@ -51,7 +51,11 @@ impl PackageRecords for Component {
         }
     }
 
-    fn append_package_record(envelope: Envelope) -> Result<RecordId, PackageValidationError> {
+    fn signing_prefix() -> Vec<u8> {
+        package::SIGNING_PREFIX.to_vec()
+    }
+
+    fn append(envelope: Envelope) -> Result<RecordId, PackageValidationError> {
         let signature = match Signature::from_str(&envelope.signature) {
             Ok(signature) => signature,
             Err(_) => return Err(PackageValidationError::SignatureParseFailure),
@@ -141,7 +145,7 @@ impl PackageRecords for Component {
         }
     }
 
-    fn encode_package_record(
+    fn encode(
         rec: PackageRecord,
     ) -> Result<EncodedPackageRecord, PackageEncodeErrno> {
         let prev = match rec.prev {
@@ -242,7 +246,7 @@ impl PackageRecords for Component {
             record_id,
         })
     }
-    fn decode_package_record(bytes: Vec<u8>) -> Result<PackageRecord, PackageDecodeErrno> {
+    fn decode(bytes: Vec<u8>) -> Result<PackageRecord, PackageDecodeErrno> {
         let rec = match package::PackageRecord::decode(&bytes) {
             Ok(rec) => rec,
             Err(_) => return Err(PackageDecodeErrno::FailedToDecode),

@@ -64,10 +64,14 @@ impl OperatorRecords for Component {
         get_log_id().to_string()
     }
 
-    fn append_operator_record(envelope: Envelope) -> Result<RecordId, OperatorValidationError> {
+    fn signing_prefix() -> Vec<u8> {
+        operator::SIGNING_PREFIX.to_vec()
+    }
+
+    fn append(envelope: Envelope) -> Result<RecordId, OperatorValidationError> {
         let signature = match Signature::from_str(&envelope.signature) {
             Ok(signature) => signature,
-            Err(_) => return Err(OperatorValidationError::SignatureParseFailure),
+            Err(err) => return Err(OperatorValidationError::SignatureParseFailure(err.to_string())),
         };
         let contents = match operator::OperatorRecord::decode(&envelope.content_bytes) {
             Ok(rec) => rec,
@@ -143,7 +147,7 @@ impl OperatorRecords for Component {
         }
     }
 
-    fn encode_operator_record(
+    fn encode(
         rec: OperatorRecord,
     ) -> Result<EncodedOperatorRecord, OperatorEncodeErrno> {
         let prev = match rec.prev {
@@ -221,7 +225,7 @@ impl OperatorRecords for Component {
             record_id,
         })
     }
-    fn decode_operator_record(bytes: Vec<u8>) -> Result<OperatorRecord, OperatorDecodeErrno> {
+    fn decode(bytes: Vec<u8>) -> Result<OperatorRecord, OperatorDecodeErrno> {
         let rec = match operator::OperatorRecord::decode(&bytes) {
             Ok(rec) => rec,
             Err(_) => return Err(OperatorDecodeErrno::FailedToDecode),

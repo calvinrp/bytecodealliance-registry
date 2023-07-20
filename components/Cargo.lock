@@ -294,6 +294,8 @@ dependencies = [
  "base64 0.21.2",
  "encoding-bindings",
  "hex",
+ "p256",
+ "warg-crypto",
  "wit-bindgen",
 ]
 

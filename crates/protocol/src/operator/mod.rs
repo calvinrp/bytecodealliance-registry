@@ -106,9 +106,10 @@ struct PermissionParseError {
 }
 
 // Serialization
+pub const SIGNING_PREFIX: &'static [u8] = b"WARG-OPERATOR-RECORD-SIGNATURE-V0";
 
 impl Signable for model::OperatorRecord {
-    const PREFIX: &'static [u8] = b"WARG-OPERATOR-RECORD-SIGNATURE-V0";
+    const PREFIX: &'static [u8] = SIGNING_PREFIX;
 }
 
 impl Encode for model::OperatorRecord {

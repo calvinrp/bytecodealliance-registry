@@ -63,7 +63,7 @@ interface operator-records {
 
   variant operator-validation-error {
     failed-to-decode-operator-record,
-    signature-parse-failure,
+    signature-parse-failure(string),
     unexpected-validation-error,
     unknown-operator-permission,
     first-entry-is-not-init,
@@ -101,11 +101,12 @@ interface operator-records {
   }
 
   log-id: func() -> hash
+  signing-prefix: func() -> list<u8>
 
-  encode-operator-record: func(rec: operator-record) -> result<encoded-operator-record, operator-encode-errno>
-  decode-operator-record: func(content-bytes: list<u8>) -> result<operator-record, operator-decode-errno>
+  encode: func(rec: operator-record) -> result<encoded-operator-record, operator-encode-errno>
+  decode: func(content-bytes: list<u8>) -> result<operator-record, operator-decode-errno>
 
-  append-operator-record: func(envelope: envelope) -> result<record-id, operator-validation-error>
+  append: func(envelope: envelope) -> result<record-id, operator-validation-error>
 }
 
 world operator-log {
