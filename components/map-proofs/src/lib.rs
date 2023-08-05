@@ -1,3 +1,5 @@
+cargo_component_bindings::generate!();
+
 use bindings::exports::warg::map_proofs::generate_map_proofs::{
     AppendLeafErrno, GenerateMapProofs, ProofInclusionError,
 };
@@ -85,5 +87,3 @@ impl GenerateMapProofs for Component {
         Ok(MapProofBundle::bundle(proofs).encode())
     }
 }
-
-bindings::export!(Component);

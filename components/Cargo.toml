@@ -10,6 +10,7 @@ members = [
 ]
 
 [workspace.dependencies]
+cargo-component-bindings = { git = "https://github.com/bytecodealliance/cargo-component" }
 wit-bindgen = { version = "0.8.0", default_features = false }
 warg-crypto = { path = "../crates/crypto" }
 warg-transparency = { path = "../crates/transparency" }

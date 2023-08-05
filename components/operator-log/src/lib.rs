@@ -1,3 +1,5 @@
+cargo_component_bindings::generate!();
+
 use bindings::exports::warg::operator_log::operator_records::{
     EncodedOperatorRecord, Envelope, OperatorDecodeErrno, OperatorEncodeErrno, OperatorEntry,
     OperatorGrantFlat, OperatorInit, OperatorPermission, OperatorRecord, OperatorRecords,
@@ -280,5 +282,3 @@ impl OperatorRecords for Component {
         })
     }
 }
-
-bindings::export!(Component);

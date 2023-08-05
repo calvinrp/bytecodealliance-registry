@@ -1,3 +1,5 @@
+cargo_component_bindings::generate!();
+
 use bindings::exports::warg::log_proofs::generate_log_proofs::{
     AppendLeafErrno, GenerateLogProofs, ProofConsistencyErrno, ProofInclusionError,
 };
@@ -82,5 +84,3 @@ impl GenerateLogProofs for Component {
         }
     }
 }
-
-bindings::export!(Component);

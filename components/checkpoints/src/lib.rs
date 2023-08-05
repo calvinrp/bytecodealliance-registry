@@ -1,3 +1,5 @@
+cargo_component_bindings::generate!();
+
 use bindings::exports::warg::registry::compute_checkpoint::{AppendLeafErrno, ComputeCheckpoint};
 use bindings::warg::registry::types::{Checkpoint, Leaf};
 
@@ -90,5 +92,3 @@ impl ComputeCheckpoint for Component {
         })
     }
 }
-
-bindings::export!(Component);

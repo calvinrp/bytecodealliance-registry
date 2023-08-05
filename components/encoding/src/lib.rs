@@ -1,3 +1,5 @@
+cargo_component_bindings::generate!();
+
 use base64::{engine::general_purpose::STANDARD, Engine};
 use warg_crypto::signing::PublicKey;
 use p256;
@@ -40,5 +42,3 @@ impl bindings::Encoding for Component {
         Ok(signature.to_vec())
     }
 }
-
-bindings::export!(Component);

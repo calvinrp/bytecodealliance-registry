@@ -1,3 +1,5 @@
+cargo_component_bindings::generate!();
+
 use bindings::exports::warg::package_log::package_records::{
     EncodedPackageRecord, Envelope, PackageDecodeErrno, PackageEncodeErrno, PackageEntry,
     PackageGrantFlat, PackageInit, PackagePermission, PackageRecord, PackageRecords,
@@ -312,5 +314,3 @@ impl PackageRecords for Component {
         })
     }
 }
-
-bindings::export!(Component);
