@@ -247,6 +247,12 @@ impl From<AnyHash> for RecordId {
     }
 }
 
+impl From<RecordId> for AnyHash {
+    fn from(id: RecordId) -> Self {
+        id.0
+    }
+}
+
 impl AsRef<[u8]> for RecordId {
     fn as_ref(&self) -> &[u8] {
         self.0.bytes()
