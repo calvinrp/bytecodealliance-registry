@@ -247,6 +247,12 @@ impl From<AnyHash> for RecordId {
     }
 }
 
+impl AsRef<[u8]> for RecordId {
+    fn as_ref(&self) -> &[u8] {
+        self.0.bytes()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
