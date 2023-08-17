@@ -30,3 +30,8 @@ message StackLog {
     uint32 length = 1;
     repeated HashEntry stack = 2;
 }
+
+message VecLog {
+    uint32 length = 1;
+    repeated bytes tree = 2;
+}

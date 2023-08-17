@@ -49,8 +49,8 @@ where
     /// Parse a StackLog from bytes using protobuf
     pub fn decode(bytes: &[u8]) -> Result<Self, Error> {
         let proto = protobuf::StackLog::decode(bytes)?;
-        let bundle = proto.try_into()?;
-        Ok(bundle)
+        let value = proto.try_into()?;
+        Ok(value)
     }
 }
 
