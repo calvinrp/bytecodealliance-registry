@@ -25,6 +25,7 @@ interface compute-checkpoint {
   }
 
   signing-prefix: func() -> list<u8>
+  checkpoint-id: func(checkpoint: checkpoint) -> hash
   append-leaf: func(leaf: leaf) -> result<_, append-leaf-errno>
   compute-checkpoint: func() -> result<checkpoint>
 }

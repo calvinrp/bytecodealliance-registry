@@ -6,8 +6,8 @@ use bindings::warg::registry::types::{Checkpoint, Leaf};
 use std::str::FromStr;
 use std::unreachable;
 use sync_unsafe_cell::SyncUnsafeCell;
-use warg_crypto::hash::{AnyHash, Sha256};
-use warg_protocol::registry::{LogId, LogLeaf, MapLeaf, RecordId, MAP_CHECKPOINT_SIGNING_PREFIX};
+use warg_crypto::hash::{AnyHash, Sha256, Hash};
+use warg_protocol::registry::{LogId, LogLeaf, MapLeaf, RecordId, MAP_CHECKPOINT_SIGNING_PREFIX, MapCheckpoint};
 use warg_transparency::log::{LogBuilder, StackLog};
 use warg_transparency::map::Map;
 
@@ -51,6 +51,17 @@ struct Component;
 impl ComputeCheckpoint for Component {
     fn signing_prefix() -> Vec<u8> {
         MAP_CHECKPOINT_SIGNING_PREFIX.to_vec()
+    }
+
+    fn checkpoint_id(checkpoint: Checkpoint) -> String {
+        let map_checkpoint = MapCheckpoint{
+            log_root: AnyHash::from_str(&checkpoint.log_root).unwrap().into(),
+            map_root: AnyHash::from_str(&checkpoint.map_root).unwrap().into(),
+            log_length: checkpoint.log_length,
+        };
+
+        let checkpoint_id: AnyHash = Hash::<Sha256>::of(map_checkpoint).into();
+        checkpoint_id.to_string()
     }
 
     fn append_leaf(leaf: Leaf) -> Result<(), AppendLeafErrno> {
