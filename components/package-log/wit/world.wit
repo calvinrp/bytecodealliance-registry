@@ -1,0 +1,136 @@
+package warg:package-log
+
+interface types {
+  type hash = string
+  type record-id = hash
+
+  record timestamp {
+    seconds: s64,
+    nanos: s32,
+  }
+
+  record envelope {
+    content-bytes: list<u8>,
+    key-id: hash,
+    signature: hash,
+  }
+}
+
+interface package-records {
+  use types.{hash, record-id, timestamp, envelope}
+  type package-version = string
+
+  enum package-permission {
+    release,
+    yank,
+  }
+
+  record package-init {
+    hash-algorithm: string,
+    key: hash,
+  }
+
+  record package-grant-flat {
+    key: hash,
+    permission: package-permission,
+  }
+
+  record package-revoke-flat {
+    key: hash,
+    permission: package-permission,
+  }
+
+  record package-release {
+    version: package-version,
+    content-digest: hash,
+  }
+
+  record package-yank {
+    version: package-version,
+  }
+
+  union package-entry {
+    package-init,
+    package-grant-flat,
+    package-revoke-flat,
+    package-release,
+    package-yank,
+  }
+
+  record package-record {
+    prev: option<record-id>,
+    version: u32,
+    timestamp: timestamp,
+    entries: list<package-entry>,
+  }
+
+  record encoded-package-record {
+    record-id: record-id,
+    content-bytes: list<u8>,
+  }
+
+  enum package-decode-errno {
+    failed-to-decode,
+    unknown-package-entry,
+    unknown-package-permission,
+  }
+
+  enum package-encode-errno {
+    prev-record-id-invalid-format,
+    unknown-package-entry,
+    unknown-package-permission,
+    unsupported-hash-algorithm,
+    public-key-parse-failure,
+    package-version-parse-error,
+    content-digest-parse-error,
+  }
+
+  record unauthorized-permission-error {
+    key-id: hash,
+    permission: package-permission,
+  }
+
+  record unexpected-hash-algorithm {
+    found: string,
+    expected: string,
+  }
+
+  variant package-validation-error {
+    signature-parse-failure,
+    failed-to-decode-operator-record,
+    unexpected-validation-error,
+    first-entry-is-not-init,
+    initial-record-does-not-init,
+    key-id-not-recognized(hash),
+    initial-entry-after-beginning,
+    unauthorized-action(unauthorized-permission-error),
+    permission-not-found-to-revoke(unauthorized-permission-error),
+    release-of-released(package-version),
+    yank-of-unreleased(package-version),
+    yank-of-yanked(package-version),
+    signature-invalid,
+    incorrect-hash-algorithm(unexpected-hash-algorithm),
+    record-hash-does-not-match,
+    previous-hash-on-first-record,
+    no-previous-hash-after-init,
+    protocol-version-not-allowed(u32),
+    timestamp-lower-than-previous,
+    unknown-package-permission,
+  }
+
+  enum log-id-errno {
+    invalid-package-name,
+  }
+
+  log-id: func(name: string) -> result<hash, log-id-errno>
+  signing-prefix: func() -> list<u8>
+
+  encode: func(rec: package-record) -> result<encoded-package-record, package-encode-errno>
+  decode: func(content-bytes: list<u8>) -> result<package-record, package-decode-errno>
+
+  append: func(envelope: envelope) -> result<record-id, package-validation-error>
+}
+
+world package-log {
+  export package-records
+}

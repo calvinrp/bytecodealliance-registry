@@ -1,0 +1,35 @@
+package warg:registry
+
+interface types {
+  type hash = string
+  type record-id = hash
+
+  record checkpoint {
+    log-length: u32,
+    log-root: hash,
+    map-root: hash,
+  }
+
+  record leaf {
+    log-id: hash,
+    record-id: hash,
+  }
+}
+
+interface compute-checkpoint {
+  use types.{hash, checkpoint, leaf}
+
+  enum append-leaf-errno {
+    invalid-log-id,
+    invalid-record-id,
+  }
+
+  signing-prefix: func() -> list<u8>
+  checkpoint-id: func(checkpoint: checkpoint) -> hash
+  append-leaf: func(leaf: leaf) -> result<_, append-leaf-errno>
+  compute-checkpoint: func() -> result<checkpoint>
+}
+
+world checkpoints {
+  export compute-checkpoint
+}

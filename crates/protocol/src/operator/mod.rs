@@ -9,7 +9,7 @@ use crate::{pbjson_to_prost_timestamp, prost_to_pbjson_timestamp, registry::Reco
 mod model;
 mod state;
 
-pub use model::{OperatorEntry, OperatorRecord};
+pub use model::{OperatorEntry, OperatorRecord, Permission};
 pub use state::{LogState, ValidationError};
 
 /// The currently supported operator protocol version.
@@ -106,9 +106,10 @@ struct PermissionParseError {
 }
 
 // Serialization
+pub const SIGNING_PREFIX: &[u8] = b"WARG-OPERATOR-RECORD-SIGNATURE-V0";
 
 impl Signable for model::OperatorRecord {
-    const PREFIX: &'static [u8] = b"WARG-OPERATOR-RECORD-SIGNATURE-V0";
+    const PREFIX: &'static [u8] = SIGNING_PREFIX;
 }
 
 impl Encode for model::OperatorRecord {

@@ -235,7 +235,7 @@ impl<Digest: SupportedDigest> Inner<Digest> {
         let signed_init_record =
             ProtoEnvelope::signed_contents(&self.operator_key, init_record).unwrap();
         let log_id = LogId::operator_log::<Digest>();
-        let record_id = RecordId::operator_record::<Digest>(&signed_init_record);
+        let record_id = RecordId::operator_record::<Digest>(signed_init_record.content_bytes());
 
         // Store init record
         self.store
