@@ -1,0 +1,114 @@
+package warg:operator-log
+
+interface types {
+  type hash = string
+  type record-id = hash
+
+  record timestamp {
+    seconds: s64,
+    nanos: s32,
+  }
+
+  record envelope {
+    content-bytes: list<u8>,
+    key-id: hash,
+    signature: hash,
+  }
+}
+
+interface operator-records {
+  use types.{hash, record-id, timestamp, envelope}
+
+  enum operator-permission {
+    commit,
+  }
+  
+  record operator-init {
+    hash-algorithm: string,
+    key: hash,
+  }
+
+  record operator-grant-flat {
+    key: hash,
+    permission: operator-permission,
+  }
+
+  record operator-revoke-flat {
+    key: hash,
+    permission: operator-permission,
+  }
+
+  union operator-entry {
+    operator-init,
+    operator-grant-flat,
+    operator-revoke-flat,
+  }
+
+  record operator-record {
+    prev: option<record-id>,
+    version: u32,
+    timestamp: timestamp,
+    entries: list<operator-entry>,
+  }
+
+  record unauthorized-permission-error {
+    key-id: hash,
+    permission: operator-permission,
+  }
+
+  record unexpected-hash-algorithm {
+    found: string,
+    expected: string,
+  }
+
+  variant operator-validation-error {
+    failed-to-decode-operator-record,
+    signature-parse-failure(string),
+    unexpected-validation-error,
+    unknown-operator-permission,
+    first-entry-is-not-init,
+    initial-record-does-not-init,
+    key-id-not-recognized(hash),
+    initial-entry-after-beginning,
+    unauthorized-action(unauthorized-permission-error),
+    permission-not-found-to-revoke(unauthorized-permission-error),
+    signature-invalid,
+    incorrect-hash-algorithm(unexpected-hash-algorithm),
+    record-hash-does-not-match,
+    previous-hash-on-first-record,
+    no-previous-hash-after-init,
+    protocol-version-not-allowed(u32),
+    timestamp-lower-than-previous,
+  }
+
+  enum operator-decode-errno {
+    failed-to-decode,
+    unknown-operator-entry,
+    unknown-operator-permission,
+  }
+
+  enum operator-encode-errno {
+    prev-record-id-invalid-format,
+    unknown-operator-entry,
+    unknown-operator-permission,
+    unsupported-hash-algorithm,
+    public-key-parse-failure,
+  }
+
+  record encoded-operator-record {
+    record-id: record-id,
+    content-bytes: list<u8>,
+  }
+
+  log-id: func() -> hash
+  signing-prefix: func() -> list<u8>
+
+  encode: func(rec: operator-record) -> result<encoded-operator-record, operator-encode-errno>
+  decode: func(content-bytes: list<u8>) -> result<operator-record, operator-decode-errno>
+
+  append: func(envelope: envelope) -> result<record-id, operator-validation-error>
+}
+
+world operator-log {
+  export operator-records
+}
