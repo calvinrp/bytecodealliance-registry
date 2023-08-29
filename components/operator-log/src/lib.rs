@@ -161,56 +161,55 @@ impl OperatorRecords for Component {
             None => None,
         };
 
-        let mut entries: Vec<operator::OperatorEntry> = Vec::with_capacity(rec.entries.len());
-
-        for entry in rec.entries {
-            entries.push(match entry {
+        let entries = rec
+            .entries
+            .into_iter()
+            .map(|entry| match entry {
                 OperatorEntry::OperatorInit(OperatorInit {
                     hash_algorithm,
                     key,
                 }) => {
-                    let hash_algorithm = match HashAlgorithm::from_str(&hash_algorithm) {
-                        Ok(algo) => algo,
-                        Err(_) => return Err(OperatorEncodeErrno::UnsupportedHashAlgorithm),
-                    };
-                    let key = match PublicKey::from_str(&key) {
-                        Ok(key) => key,
-                        Err(_) => return Err(OperatorEncodeErrno::PublicKeyParseFailure),
-                    };
-                    operator::OperatorEntry::Init {
+                    let hash_algorithm = HashAlgorithm::from_str(&hash_algorithm)
+                        .or(Err(OperatorEncodeErrno::UnsupportedHashAlgorithm))?;
+                    let key = PublicKey::from_str(&key)
+                        .or(Err(OperatorEncodeErrno::PublicKeyParseFailure))?;
+
+                    Ok(operator::OperatorEntry::Init {
                         hash_algorithm,
                         key,
-                    }
+                    })
                 }
-                OperatorEntry::OperatorGrantFlat(OperatorGrantFlat { key, permission }) => {
-                    let key = match PublicKey::from_str(&key) {
-                        Ok(key) => key,
-                        Err(_) => return Err(OperatorEncodeErrno::PublicKeyParseFailure),
-                    };
-                    operator::OperatorEntry::GrantFlat {
-                        key,
-                        permission: match permission {
-                            OperatorPermission::Commit => operator::Permission::Commit,
-                            //_ => return Err(OperatorEncodeErrno::UnknownOperatorPermission),
-                        },
-                    }
-                }
-                OperatorEntry::OperatorRevokeFlat(OperatorRevokeFlat { key, permission }) => {
-                    operator::OperatorEntry::RevokeFlat {
-                        key_id: key.into(),
-                        permission: match permission {
-                            OperatorPermission::Commit => operator::Permission::Commit,
-                            //_ => return Err(OperatorEncodeErrno::UnknownOperatorPermission),
-                        },
-                    }
-                } //_ => return Err(OperatorEncodeErrno::UnknownOperatorEntry),
-            });
-        }
+                OperatorEntry::OperatorGrantFlat(OperatorGrantFlat { key, permissions }) => {
+                    let key = PublicKey::from_str(&key)
+                        .or(Err(OperatorEncodeErrno::PublicKeyParseFailure))?;
 
-        let prev: Option<WargRecordId> = match prev {
-            Some(prev) => Some(prev.into()),
-            None => None,
-        };
+                    Ok(operator::OperatorEntry::GrantFlat {
+                        key,
+                        permissions: permissions
+                            .iter()
+                            .map(|permission| match permission {
+                                OperatorPermission::Commit => operator::Permission::Commit,
+                                //_ => return Err(OperatorEncodeErrno::UnknownOperatorPermission),
+                            })
+                            .collect(),
+                    })
+                }
+                OperatorEntry::OperatorRevokeFlat(OperatorRevokeFlat { key, permissions }) => {
+                    Ok(operator::OperatorEntry::RevokeFlat {
+                        key_id: key.into(),
+                        permissions: permissions
+                            .iter()
+                            .map(|permission| match permission {
+                                OperatorPermission::Commit => operator::Permission::Commit,
+                                //_ => return Err(OperatorEncodeErrno::UnknownOperatorPermission),
+                            })
+                            .collect(),
+                    })
+                } //_ => return Err(OperatorEncodeErrno::UnknownOperatorEntry),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let prev: Option<WargRecordId> = prev.map(|prev| prev.into());
 
         let operator_record = operator::OperatorRecord {
             prev,
@@ -239,38 +238,45 @@ impl OperatorRecords for Component {
             Err(_) => return Err(OperatorDecodeErrno::FailedToDecode),
         };
 
-        let mut entries: Vec<OperatorEntry> = Vec::with_capacity(rec.entries.len());
-
-        for entry in rec.entries {
-            entries.push(match entry {
+        let entries = rec
+            .entries
+            .iter()
+            .map(|entry| match entry {
                 operator::OperatorEntry::Init {
                     hash_algorithm,
                     key,
-                } => OperatorEntry::OperatorInit(OperatorInit {
+                } => Ok(OperatorEntry::OperatorInit(OperatorInit {
                     hash_algorithm: hash_algorithm.to_string(),
                     key: key.to_string(),
-                }),
-                operator::OperatorEntry::GrantFlat { key, permission } => {
-                    OperatorEntry::OperatorGrantFlat(OperatorGrantFlat {
+                })),
+                operator::OperatorEntry::GrantFlat { key, permissions } => {
+                    Ok(OperatorEntry::OperatorGrantFlat(OperatorGrantFlat {
                         key: key.to_string(),
-                        permission: match permission {
-                            operator::Permission::Commit => OperatorPermission::Commit,
-                            _ => return Err(OperatorDecodeErrno::UnknownOperatorPermission),
-                        },
-                    })
+                        permissions: permissions
+                            .iter()
+                            .map(|permission| match permission {
+                                operator::Permission::Commit => Ok(OperatorPermission::Commit),
+                                _ => return Err(OperatorDecodeErrno::UnknownOperatorPermission),
+                            })
+                            .collect::<Result<Vec<_>, _>>()?,
+                    }))
                 }
-                operator::OperatorEntry::RevokeFlat { key_id, permission } => {
-                    OperatorEntry::OperatorRevokeFlat(OperatorRevokeFlat {
-                        key: key_id.to_string(),
-                        permission: match permission {
-                            operator::Permission::Commit => OperatorPermission::Commit,
+                operator::OperatorEntry::RevokeFlat {
+                    key_id,
+                    permissions,
+                } => Ok(OperatorEntry::OperatorRevokeFlat(OperatorRevokeFlat {
+                    key: key_id.to_string(),
+                    permissions: permissions
+                        .iter()
+                        .map(|permission| match permission {
+                            operator::Permission::Commit => Ok(OperatorPermission::Commit),
                             _ => return Err(OperatorDecodeErrno::UnknownOperatorPermission),
-                        },
-                    })
-                }
+                        })
+                        .collect::<Result<Vec<_>, _>>()?,
+                })),
                 _ => return Err(OperatorDecodeErrno::UnknownOperatorEntry),
-            });
-        }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(OperatorRecord {
             prev: rec.prev.map(|hash| hash.to_string()),

@@ -32,12 +32,12 @@ interface package-records {
 
   record package-grant-flat {
     key: hash,
-    permission: package-permission,
+    permissions: list<package-permission>,
   }
 
   record package-revoke-flat {
     key: hash,
-    permission: package-permission,
+    permissions: list<package-permission>,
   }
 
   record package-release {

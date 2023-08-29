@@ -30,12 +30,12 @@ interface operator-records {
 
   record operator-grant-flat {
     key: hash,
-    permission: operator-permission,
+    permissions: list<operator-permission>,
   }
 
   record operator-revoke-flat {
     key: hash,
-    permission: operator-permission,
+    permissions: list<operator-permission>,
   }
 
   union operator-entry {

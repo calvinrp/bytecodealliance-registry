@@ -60,14 +60,11 @@ impl PackageRecords for Component {
     }
 
     fn append(envelope: Envelope) -> Result<RecordId, PackageValidationError> {
-        let signature = match Signature::from_str(&envelope.signature) {
-            Ok(signature) => signature,
-            Err(_) => return Err(PackageValidationError::SignatureParseFailure),
-        };
-        let contents = match package::PackageRecord::decode(&envelope.content_bytes) {
-            Ok(rec) => rec,
-            Err(_) => return Err(PackageValidationError::FailedToDecodeOperatorRecord),
-        };
+        let signature = Signature::from_str(&envelope.signature)
+            .or(Err(PackageValidationError::SignatureParseFailure))?;
+        let contents = package::PackageRecord::decode(&envelope.content_bytes)
+            .or(Err(PackageValidationError::FailedToDecodeOperatorRecord))?;
+
         let proto_envelope = warg_protocol::ProtoEnvelope::<package::PackageRecord> {
             contents,
             content_bytes: envelope.content_bytes,
@@ -158,79 +155,69 @@ impl PackageRecords for Component {
             None => None,
         };
 
-        let mut entries: Vec<package::PackageEntry> = Vec::with_capacity(rec.entries.len());
-
-        for entry in rec.entries {
-            entries.push(match entry {
+        let entries = rec.entries
+            .into_iter()
+            .map(|entry| match entry {
                 PackageEntry::PackageInit(PackageInit {
                     hash_algorithm,
                     key,
                 }) => {
-                    let hash_algorithm = match HashAlgorithm::from_str(&hash_algorithm) {
-                        Ok(algo) => algo,
-                        Err(_) => return Err(PackageEncodeErrno::UnsupportedHashAlgorithm),
-                    };
-                    let key = match PublicKey::from_str(&key) {
-                        Ok(key) => key,
-                        Err(_) => return Err(PackageEncodeErrno::PublicKeyParseFailure),
-                    };
-                    package::PackageEntry::Init {
+                    let hash_algorithm = HashAlgorithm::from_str(&hash_algorithm)
+                        .or(Err(PackageEncodeErrno::UnsupportedHashAlgorithm))?;
+
+                    let key = PublicKey::from_str(&key)
+                        .or(Err(PackageEncodeErrno::PublicKeyParseFailure))?;
+
+                    Ok(package::PackageEntry::Init {
                         hash_algorithm,
                         key,
-                    }
+                    })
                 }
-                PackageEntry::PackageGrantFlat(PackageGrantFlat { key, permission }) => {
-                    let key = match PublicKey::from_str(&key) {
-                        Ok(key) => key,
-                        Err(_) => return Err(PackageEncodeErrno::PublicKeyParseFailure),
-                    };
-                    package::PackageEntry::GrantFlat {
+                PackageEntry::PackageGrantFlat(PackageGrantFlat { key, permissions }) => {
+                    let key = PublicKey::from_str(&key)
+                        .or(Err(PackageEncodeErrno::PublicKeyParseFailure))?;
+
+                    Ok(package::PackageEntry::GrantFlat {
                         key,
-                        permission: match permission {
-                            PackagePermission::Release => package::Permission::Release,
-                            PackagePermission::Yank => package::Permission::Yank,
+                        permissions: permissions.iter().map(|permission| match permission {
+                            PackagePermission::Release => Ok(package::Permission::Release),
+                            PackagePermission::Yank => Ok(package::Permission::Yank),
                             //_ => return Err(PackageEncodeErrno::UnknownPackagePermission),
-                        },
-                    }
+                        }).collect::<Result<Vec<_>, _>>()?,
+                    })
                 }
-                PackageEntry::PackageRevokeFlat(PackageRevokeFlat { key, permission }) => {
-                    package::PackageEntry::RevokeFlat {
+                PackageEntry::PackageRevokeFlat(PackageRevokeFlat { key, permissions }) => {
+                    Ok(package::PackageEntry::RevokeFlat {
                         key_id: key.into(),
-                        permission: match permission {
-                            PackagePermission::Release => package::Permission::Release,
-                            PackagePermission::Yank => package::Permission::Yank,
+                        permissions: permissions.iter().map(|permission| match permission {
+                            PackagePermission::Release => Ok(package::Permission::Release),
+                            PackagePermission::Yank => Ok(package::Permission::Yank),
                             //_ => return Err(PackageEncodeErrno::UnknownPackagePermission),
-                        },
-                    }
+                        }).collect::<Result<Vec<_>, _>>()?,
+                    })
                 }
                 PackageEntry::PackageRelease(PackageRelease {
                     version,
                     content_digest,
                 }) => {
-                    let version = match Version::parse(&version) {
-                        Ok(version) => version,
-                        Err(_) => return Err(PackageEncodeErrno::PackageVersionParseError),
-                    };
-                    let content = match AnyHash::from_str(&content_digest) {
-                        Ok(hash) => hash,
-                        Err(_) => return Err(PackageEncodeErrno::ContentDigestParseError),
-                    };
-                    package::PackageEntry::Release { version, content }
+                    let version = Version::parse(&version)
+                        .or(Err(PackageEncodeErrno::PackageVersionParseError))?;
+
+                    let content = AnyHash::from_str(&content_digest)
+                        .or(Err(PackageEncodeErrno::ContentDigestParseError))?;
+
+                    Ok(package::PackageEntry::Release { version, content })
                 }
                 PackageEntry::PackageYank(PackageYank { version }) => {
-                    let version = match Version::parse(&version) {
-                        Ok(version) => version,
-                        Err(_) => return Err(PackageEncodeErrno::PackageVersionParseError),
-                    };
-                    package::PackageEntry::Yank { version }
-                } //_ => return Err(PackageEncodeErrno::UnknownPackageEntry),
-            });
-        }
+                    let version = Version::parse(&version)
+                        .or(Err(PackageEncodeErrno::PackageVersionParseError))?;
 
-        let prev: Option<WargRecordId> = match prev {
-            Some(prev) => Some(prev.into()),
-            None => None,
-        };
+                    Ok(package::PackageEntry::Yank { version })
+                } //_ => return Err(PackageEncodeErrno::UnknownPackageEntry),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let prev: Option<WargRecordId> = prev.map(|prev| prev.into());
 
         let package_record = package::PackageRecord {
             prev,
@@ -249,59 +236,54 @@ impl PackageRecords for Component {
         })
     }
     fn decode(bytes: Vec<u8>) -> Result<PackageRecord, PackageDecodeErrno> {
-        let rec = match package::PackageRecord::decode(&bytes) {
-            Ok(rec) => rec,
-            Err(_) => return Err(PackageDecodeErrno::FailedToDecode),
-        };
+        let rec = package::PackageRecord::decode(&bytes)
+            .or(Err(PackageDecodeErrno::FailedToDecode))?;
 
-        let duration_since_epoch = match rec.timestamp.duration_since(UNIX_EPOCH) {
-            Ok(duration_since_epoch) => duration_since_epoch,
-            Err(_) => return Err(PackageDecodeErrno::FailedToDecode),
-        };
+        let duration_since_epoch = rec.timestamp.duration_since(UNIX_EPOCH)
+            .or(Err(PackageDecodeErrno::FailedToDecode))?;
 
-        let mut entries: Vec<PackageEntry> = Vec::with_capacity(rec.entries.len());
-
-        for entry in rec.entries {
-            entries.push(match entry {
+        let entries = rec.entries
+            .iter()
+            .map(|entry| match entry {
                 package::PackageEntry::Init {
                     hash_algorithm,
                     key,
-                } => PackageEntry::PackageInit(PackageInit {
+                } => Ok(PackageEntry::PackageInit(PackageInit {
                     hash_algorithm: hash_algorithm.to_string(),
                     key: key.to_string(),
-                }),
-                package::PackageEntry::GrantFlat { key, permission } => {
-                    PackageEntry::PackageGrantFlat(PackageGrantFlat {
+                })),
+                package::PackageEntry::GrantFlat { key, permissions } => {
+                    Ok(PackageEntry::PackageGrantFlat(PackageGrantFlat {
                         key: key.to_string(),
-                        permission: match permission {
-                            package::Permission::Release => PackagePermission::Release,
-                            package::Permission::Yank => PackagePermission::Yank,
-                            _ => return Err(PackageDecodeErrno::UnknownPackagePermission),
-                        },
-                    })
+                        permissions: permissions.iter().map(|permission| match permission {
+                            package::Permission::Release => Ok(PackagePermission::Release),
+                            package::Permission::Yank => Ok(PackagePermission::Yank),
+                            _ => Err(PackageDecodeErrno::UnknownPackagePermission),
+                        }).collect::<Result<Vec<_>, _>>()?,
+                    }))
                 }
-                package::PackageEntry::RevokeFlat { key_id, permission } => {
-                    PackageEntry::PackageRevokeFlat(PackageRevokeFlat {
+                package::PackageEntry::RevokeFlat { key_id, permissions } => {
+                    Ok(PackageEntry::PackageRevokeFlat(PackageRevokeFlat {
                         key: key_id.to_string(),
-                        permission: match permission {
-                            package::Permission::Release => PackagePermission::Release,
-                            package::Permission::Yank => PackagePermission::Yank,
-                            _ => return Err(PackageDecodeErrno::UnknownPackagePermission),
-                        },
-                    })
+                        permissions: permissions.iter().map(|permission| match permission {
+                            package::Permission::Release => Ok(PackagePermission::Release),
+                            package::Permission::Yank => Ok(PackagePermission::Yank),
+                            _ => Err(PackageDecodeErrno::UnknownPackagePermission),
+                        }).collect::<Result<Vec<_>, _>>()?,
+                    }))
                 }
                 package::PackageEntry::Release { version, content } => {
-                    PackageEntry::PackageRelease(PackageRelease {
+                    Ok(PackageEntry::PackageRelease(PackageRelease {
                         version: version.to_string(),
                         content_digest: content.to_string(),
-                    })
+                    }))
                 }
-                package::PackageEntry::Yank { version } => PackageEntry::PackageYank(PackageYank {
+                package::PackageEntry::Yank { version } => Ok(PackageEntry::PackageYank(PackageYank {
                     version: version.to_string(),
-                }),
+                })),
                 _ => return Err(PackageDecodeErrno::UnknownPackageEntry),
-            });
-        }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(PackageRecord {
             prev: rec.prev.map(|hash| hash.to_string()),
