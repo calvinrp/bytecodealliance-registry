@@ -1,0 +1,24 @@
+[package]
+name = "map-proofs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cargo-component-bindings = { workspace = true }
+warg-crypto = { workspace = true }
+warg-protocol = { workspace = true }
+warg-transparency = { workspace = true }
+sync-unsafe-cell = { workspace = true }
+
+[lib]
+crate-type = ["cdylib"]
+
+[package.metadata.component]
+package = "warg:map-proofs"
+
+[package.metadata.component.target]
+path = "wit"
+
+[package.metadata.component.dependencies]
