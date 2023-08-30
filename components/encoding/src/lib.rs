@@ -18,6 +18,17 @@ impl bindings::Encoding for Component {
         }
     }
 
+    fn encode_hex(content: Vec<u8>) -> String {
+        hex::encode(content)
+    }
+
+    fn decode_hex(encoded: String) -> Result<Vec<u8>, ()> {
+        match hex::decode(encoded) {
+            Ok(bytes) => Ok(bytes),
+            Err(_) => Err(()),
+        }
+    }
+
     fn key_id(public_key: String) -> Result<String, ()> {
         let public_key = match public_key.parse::<PublicKey>() {
             Ok(public_key) => public_key,
