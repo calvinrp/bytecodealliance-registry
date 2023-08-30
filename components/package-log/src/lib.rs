@@ -2,9 +2,10 @@ cargo_component_bindings::generate!();
 
 use bindings::exports::warg::package_log::package_records::{
     EncodedPackageRecord, Envelope, LogIdErrno, PackageDecodeErrno, PackageEncodeErrno,
-    PackageEntry, PackageGrantFlat, PackageInit, PackagePermission, PackageRecord, PackageRecords,
-    PackageRelease, PackageRevokeFlat, PackageValidationError, PackageYank, RecordId,
+    PackageEntry, PackagePermission, PackageRecord, PackageRecords,
+    PackageValidationError, RecordId,
     UnauthorizedPermissionError, UnexpectedHashAlgorithm,
+    PackageInit, PackageGrantFlat, PackageRevokeFlat, PackageRelease, PackageYank,
 };
 use bindings::warg::package_log::types::{Hash, Timestamp};
 
@@ -158,7 +159,7 @@ impl PackageRecords for Component {
         let entries = rec.entries
             .into_iter()
             .map(|entry| match entry {
-                PackageEntry::PackageInit(PackageInit {
+                PackageEntry::PackageInit(PackageInit{
                     hash_algorithm,
                     key,
                 }) => {
@@ -173,7 +174,7 @@ impl PackageRecords for Component {
                         key,
                     })
                 }
-                PackageEntry::PackageGrantFlat(PackageGrantFlat { key, permissions }) => {
+                PackageEntry::PackageGrantFlat(PackageGrantFlat{ key, permissions }) => {
                     let key = PublicKey::from_str(&key)
                         .or(Err(PackageEncodeErrno::PublicKeyParseFailure))?;
 
@@ -186,7 +187,7 @@ impl PackageRecords for Component {
                         }).collect::<Result<Vec<_>, _>>()?,
                     })
                 }
-                PackageEntry::PackageRevokeFlat(PackageRevokeFlat { key, permissions }) => {
+                PackageEntry::PackageRevokeFlat(PackageRevokeFlat{ key, permissions }) => {
                     Ok(package::PackageEntry::RevokeFlat {
                         key_id: key.into(),
                         permissions: permissions.iter().map(|permission| match permission {
@@ -196,7 +197,7 @@ impl PackageRecords for Component {
                         }).collect::<Result<Vec<_>, _>>()?,
                     })
                 }
-                PackageEntry::PackageRelease(PackageRelease {
+                PackageEntry::PackageRelease(PackageRelease{
                     version,
                     content_digest,
                 }) => {
@@ -208,7 +209,7 @@ impl PackageRecords for Component {
 
                     Ok(package::PackageEntry::Release { version, content })
                 }
-                PackageEntry::PackageYank(PackageYank { version }) => {
+                PackageEntry::PackageYank(PackageYank{ version }) => {
                     let version = Version::parse(&version)
                         .or(Err(PackageEncodeErrno::PackageVersionParseError))?;
 
@@ -248,12 +249,12 @@ impl PackageRecords for Component {
                 package::PackageEntry::Init {
                     hash_algorithm,
                     key,
-                } => Ok(PackageEntry::PackageInit(PackageInit {
+                } => Ok(PackageEntry::PackageInit(PackageInit{
                     hash_algorithm: hash_algorithm.to_string(),
                     key: key.to_string(),
                 })),
                 package::PackageEntry::GrantFlat { key, permissions } => {
-                    Ok(PackageEntry::PackageGrantFlat(PackageGrantFlat {
+                    Ok(PackageEntry::PackageGrantFlat(PackageGrantFlat{
                         key: key.to_string(),
                         permissions: permissions.iter().map(|permission| match permission {
                             package::Permission::Release => Ok(PackagePermission::Release),
@@ -263,7 +264,7 @@ impl PackageRecords for Component {
                     }))
                 }
                 package::PackageEntry::RevokeFlat { key_id, permissions } => {
-                    Ok(PackageEntry::PackageRevokeFlat(PackageRevokeFlat {
+                    Ok(PackageEntry::PackageRevokeFlat(PackageRevokeFlat{
                         key: key_id.to_string(),
                         permissions: permissions.iter().map(|permission| match permission {
                             package::Permission::Release => Ok(PackagePermission::Release),
@@ -273,12 +274,12 @@ impl PackageRecords for Component {
                     }))
                 }
                 package::PackageEntry::Release { version, content } => {
-                    Ok(PackageEntry::PackageRelease(PackageRelease {
+                    Ok(PackageEntry::PackageRelease(PackageRelease{
                         version: version.to_string(),
                         content_digest: content.to_string(),
                     }))
                 }
-                package::PackageEntry::Yank { version } => Ok(PackageEntry::PackageYank(PackageYank {
+                package::PackageEntry::Yank { version } => Ok(PackageEntry::PackageYank(PackageYank{
                     version: version.to_string(),
                 })),
                 _ => return Err(PackageDecodeErrno::UnknownPackageEntry),

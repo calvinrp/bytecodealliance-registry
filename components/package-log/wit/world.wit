@@ -49,12 +49,12 @@ interface package-records {
     version: package-version,
   }
 
-  union package-entry {
-    package-init,
-    package-grant-flat,
-    package-revoke-flat,
-    package-release,
-    package-yank,
+  variant package-entry {
+    package-init(package-init),
+    package-grant-flat(package-grant-flat),
+    package-revoke-flat(package-revoke-flat),
+    package-release(package-release),
+    package-yank(package-yank),
   }
 
   record package-record {

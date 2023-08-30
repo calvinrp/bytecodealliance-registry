@@ -38,10 +38,10 @@ interface operator-records {
     permissions: list<operator-permission>,
   }
 
-  union operator-entry {
-    operator-init,
-    operator-grant-flat,
-    operator-revoke-flat,
+  variant operator-entry {
+    operator-init(operator-init),
+    operator-grant-flat(operator-grant-flat),
+    operator-revoke-flat(operator-revoke-flat),
   }
 
   record operator-record {
