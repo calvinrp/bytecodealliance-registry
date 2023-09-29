@@ -3,8 +3,10 @@ use crate::services::{CoreService, CoreServiceError};
 use axum::{
     debug_handler, extract::State, http::StatusCode, response::IntoResponse, routing::post, Router,
 };
+use std::collections::HashMap;
 use warg_api::v1::proof::{
-    ConsistencyRequest, ConsistencyResponse, InclusionRequest, InclusionResponse, ProofError,
+    ConsistencyRequest, ConsistencyResponse, InclusionProofs, InclusionRequest, InclusionResponse,
+    ProofError,
 };
 use warg_protocol::registry::{RegistryIndex, RegistryLen};
 
@@ -64,11 +66,15 @@ async fn prove_consistency(
 ) -> Result<Json<ConsistencyResponse>, ProofApiError> {
     let bundle = config
         .core
-        .log_consistency_proof(body.from as RegistryLen, body.to as RegistryLen)
+        .log_consistency_proof(
+            body.params.from as RegistryLen,
+            body.params.to as RegistryLen,
+        )
         .await?;
 
     Ok(Json(ConsistencyResponse {
         proof: bundle.encode(),
+        federated: HashMap::new(),
     }))
 }
 
@@ -77,8 +83,9 @@ async fn prove_inclusion(
     State(config): State<Config>,
     Json(body): Json<InclusionRequest>,
 ) -> Result<Json<InclusionResponse>, ProofApiError> {
-    let log_length = body.log_length as RegistryLen;
+    let log_length = body.params.log_length as RegistryLen;
     let leafs = body
+        .params
         .leafs
         .into_iter()
         .map(|index| index as RegistryIndex)
@@ -88,7 +95,10 @@ async fn prove_inclusion(
     let map_bundle = config.core.map_inclusion_proofs(log_length, &leafs).await?;
 
     Ok(Json(InclusionResponse {
-        log: log_bundle.encode(),
-        map: map_bundle.encode(),
+        proofs: InclusionProofs {
+            log: log_bundle.encode(),
+            map: map_bundle.encode(),
+        },
+        federated: HashMap::new(),
     }))
 }

@@ -40,10 +40,6 @@ paths:
         - fetch
       description: |
         Fetch the operator and packages logs from the registry.
-
-        TODO: document operator record format.
-
-        TODO: document package record format.
       requestBody:
         required: true
         content:
@@ -105,8 +101,6 @@ paths:
         Publishing package records is an asynchronous operation.
 
         The record must be signed by a key that is authorized to modify the package log.
-
-        TODO: document package record format.
       parameters:
         - name: logId
           in: path
@@ -163,8 +157,6 @@ paths:
           * `processing`: The package record is being processed.
           * `rejected`: The package record was rejected.
           * `published`: The package record was published to the log.
-
-        TODO: document package record format.
       parameters:
         - name: logId
           in: path
@@ -549,6 +541,11 @@ components:
                 signature: "ecdsa-p256:MEUCIQCzWZBW6ux9LecP66Y+hjmLZTP/hZVz7puzlPTXcRT2wwIgQZO7nxP0nugtw18MwHZ26ROFWcJmgCtKOguK031Y1D0="
                 registryIndex: 732
                 fetchToken: "sha256:ygdb4e8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae00a8y"
+        federatedCheckpoints:
+          type: object
+          description: The map of federation registry identifiers to signed timestamped checkpoints.
+          additionalProperties:
+            $ref: "#/components/schemas/SignedCheckpoint"
     PublishPackageRecordRequest:
       type: object
       description: A request to publish a record to a package log.
@@ -596,9 +593,9 @@ components:
               processing: "#/components/schemas/ProcessingRecord"
               rejected: "#/components/schemas/RejectedRecord"
               published: "#/components/schemas/PublishedRecord"
-    ProveConsistencyRequest:
+    ProveConsistencyRequestParams:
       type: object
-      description: A request to prove the consistency of the registry.
+      description: Consistency proof request params.
       additionalProperties: false
       required:
         - from
@@ -614,6 +611,20 @@ components:
           description: The ending log length.
           minimum: 1
           example: 42
+    ProveConsistencyRequest:
+      type: object
+      description: A request to prove the consistency of the registry.
+      additionalProperties: false
+      allOf:
+        - $ref: "#/components/schemas/ProveConsistencyRequestParams"
+        - type: object
+          additionalProperties: false
+          federated:
+            type: object
+            description: For federated packages, the params for consistency proof request.
+            additionalProperties:
+              type: object
+              $ref: "#/components/schemas/ProveConsistencyRequestParams"
     ProveConsistencyResponse:
       type: object
       description: A response containing the consistency proof bundle.
@@ -626,9 +637,17 @@ components:
           description: The consistency proof bundle.
           format: byte
           example: "ZXhhbXBsZQ=="
-    ProveInclusionRequest:
+        federated:
+          type: object
+          description: For federated packages, the consistency proof bundles.
+          additionalProperties:
+            type: string
+            description: The consistency proof bundle.
+            format: byte
+            example: "ZXhhbXBsZQ=="
+    ProveInclusionRequestParams:
       type: object
-      description: A request to prove the inclusion of log leafs in a checkpoint.
+      description: Inclusion proof request params.
       additionalProperties: false
       required:
         - logLength
@@ -643,9 +662,23 @@ components:
           description: The log leaf registry log index to prove the inclusion for.
           items:
             type: integer
-    ProveInclusionResponse:
+    ProveInclusionRequest:
       type: object
-      description: A response containing the inclusion proof bundle.
+      description: A request to prove the inclusion of log leafs in a checkpoint.
+      additionalProperties: false
+      allOf:
+        - $ref: "#/components/schemas/ProveInclusionRequestParams"
+        - type: object
+          additionalProperties: false
+          federated:
+            type: object
+            description: For federated packages, the params for inclusion proof request.
+            additionalProperties:
+              type: object
+              $ref: "#/components/schemas/ProveInclusionRequestParams"
+    ProveInclusionProofBundles:
+      type: object
+      description: The inclusion proof bundle.
       additionalProperties: false
       required:
         - log
@@ -661,6 +694,20 @@ components:
           description: The map inclusion proof bundle.
           format: byte
           example: "ZXhhbXBsZQ=="
+    ProveInclusionResponse:
+      type: object
+      description: A response containing the inclusion proof bundle.
+      additionalProperties: false
+      allOf:
+        - $ref: "#/components/schemas/ProveInclusionProofBundles"
+        - type: object
+          additionalProperties: false
+          federated:
+            type: object
+            description: For federated packages, the inclusion proof bundles.
+            additionalProperties:
+              type: object
+              $ref: "#/components/schemas/ProveInclusionProofBundles"
     SourcingRecord:
       type: object
       description: The package record is sourcing content.
@@ -717,6 +764,10 @@ components:
           description: The state of the package record.
           enum: [published]
           example: published
+        registry:
+          type: string
+          description: If a federated package, the federated registry ID.
+          example: "registry.example.com"
         registryIndex:
           type: integer
           description: The index of the record in the registry log.
@@ -813,6 +864,10 @@ components:
             - registryIndex
             - fetchToken
           properties:
+            registry:
+              type: string
+              description: If a federated package, the federated registry ID.
+              example: "registry.example.com"
             registryIndex:
               type: integer
               description: The index of the published record in the registry log.

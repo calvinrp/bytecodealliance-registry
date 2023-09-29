@@ -482,6 +482,7 @@ impl DataStore for MemoryDataStore {
             .take_while(|entry| entry.registry_index < registry_log_length)
             .map(|entry| PublishedProtoEnvelope {
                 envelope: entry.record_content.clone(),
+                registry: None,
                 registry_index: entry.registry_index,
             })
             .take(limit as usize)
@@ -521,6 +522,7 @@ impl DataStore for MemoryDataStore {
             .take_while(|entry| entry.registry_index < registry_log_length)
             .map(|entry| PublishedProtoEnvelope {
                 envelope: entry.record_content.clone(),
+                registry: None,
                 registry_index: entry.registry_index,
             })
             .take(limit as usize)

@@ -4,18 +4,31 @@ use crate::Status;
 use serde::{Deserialize, Serialize, Serializer};
 use serde_with::{base64::Base64, serde_as};
 use std::borrow::Cow;
+use std::collections::HashMap;
 use thiserror::Error;
 use warg_crypto::hash::AnyHash;
-use warg_protocol::registry::{LogId, RegistryIndex, RegistryLen};
+use warg_protocol::registry::{FederatedRegistryId, LogId, RegistryIndex, RegistryLen};
+
+/// Represents consistency proof request parameters.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConsistencyRequestParams {
+    /// The starting log length to check for consistency.
+    pub from: RegistryLen,
+    /// The ending log length to check for consistency.
+    pub to: RegistryLen,
+}
 
 /// Represents a consistency proof request.
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConsistencyRequest {
-    /// The starting log length to check for consistency.
-    pub from: RegistryLen,
-    /// The ending log length to check for consistency.
-    pub to: RegistryLen,
+    /// Consistency request params.
+    #[serde(flatten)]
+    pub params: ConsistencyRequestParams,
+    /// The federated registry consistency request params.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub federated: HashMap<FederatedRegistryId, ConsistencyRequestParams>,
 }
 
 /// Represents a consistency proof response.
@@ -26,16 +39,45 @@ pub struct ConsistencyResponse {
     /// The bytes of the consistency proof bundle.
     #[serde_as(as = "Base64")]
     pub proof: Vec<u8>,
+    /// If federated registry proofs are requested, the consistency proof bundles.
+    #[serde_as(as = "HashMap<_, Base64>")]
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub federated: HashMap<FederatedRegistryId, Vec<u8>>,
+}
+
+/// Represents inclusion proof request parameters.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InclusionRequestParams {
+    /// The log length to check for inclusion.
+    pub log_length: RegistryLen,
+    /// The log leaf indexes in the registry log to check for inclusion.
+    pub leafs: Vec<RegistryIndex>,
 }
 
 /// Represents an inclusion proof request.
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InclusionRequest {
-    /// The log length to check for inclusion.
-    pub log_length: RegistryLen,
-    /// The log leaf indexes in the registry log to check for inclusion.
-    pub leafs: Vec<RegistryIndex>,
+    /// Inclusion proof request parameters.
+    #[serde(flatten)]
+    pub params: InclusionRequestParams,
+    /// The federated registry inclusion request params.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub federated: HashMap<FederatedRegistryId, InclusionRequestParams>,
+}
+
+/// Represents an inclusion proof bundles.
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct InclusionProofs {
+    /// The bytes of the log log proof bundle.
+    #[serde_as(as = "Base64")]
+    pub log: Vec<u8>,
+    /// The bytes of the map inclusion proof bundle.
+    #[serde_as(as = "Base64")]
+    pub map: Vec<u8>,
 }
 
 /// Represents an inclusion proof response.
@@ -43,12 +85,12 @@ pub struct InclusionRequest {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct InclusionResponse {
-    /// The bytes of the log log proof bundle.
-    #[serde_as(as = "Base64")]
-    pub log: Vec<u8>,
-    /// The bytes of the map inclusion proof bundle.
-    #[serde_as(as = "Base64")]
-    pub map: Vec<u8>,
+    /// Inclusion proof bundles.
+    #[serde(flatten)]
+    pub proofs: InclusionProofs,
+    /// If federated registry proofs are requested, the inclusion proofs.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub federated: HashMap<FederatedRegistryId, InclusionProofs>,
 }
 
 /// Represents a proof API error.

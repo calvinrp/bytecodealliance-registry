@@ -153,6 +153,7 @@ async fn fetch_logs(
         more,
         operator,
         packages: map,
+        federated_checkpoints: HashMap::new(),
     }))
 }
 

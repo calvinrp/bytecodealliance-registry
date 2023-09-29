@@ -353,7 +353,7 @@ impl Client {
         leafs: &[LogLeaf],
     ) -> Result<(), ClientError> {
         let log_proof_bundle: LogProofBundle<Sha256, LogLeaf> =
-            LogProofBundle::decode(response.log.as_slice())?;
+            LogProofBundle::decode(response.proofs.log.as_slice())?;
         let (log_data, _, log_inclusions) = log_proof_bundle.unbundle();
         for (leaf, proof) in leafs.iter().zip(log_inclusions.iter()) {
             let found = proof.evaluate_value(&log_data, leaf)?;
@@ -367,7 +367,7 @@ impl Client {
         }
 
         let map_proof_bundle: MapProofBundle<Sha256, LogId, MapLeaf> =
-            MapProofBundle::decode(response.map.as_slice())?;
+            MapProofBundle::decode(response.proofs.map.as_slice())?;
         let map_inclusions = map_proof_bundle.unbundle();
         for (leaf, proof) in leafs.iter().zip(map_inclusions.iter()) {
             let found = proof.evaluate(

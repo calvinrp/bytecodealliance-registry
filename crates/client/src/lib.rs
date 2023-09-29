@@ -17,15 +17,17 @@ use warg_api::v1::{
         MissingContent, PackageError, PackageRecord, PackageRecordState, PublishRecordRequest,
         UploadEndpoint,
     },
-    proof::{ConsistencyRequest, InclusionRequest},
+    proof::{
+        ConsistencyRequest, ConsistencyRequestParams, InclusionRequest, InclusionRequestParams,
+    },
 };
 use warg_crypto::{
     hash::{AnyHash, Hash, Sha256},
-    signing,
+    signing, Encode, Signable,
 };
 use warg_protocol::{
     operator, package,
-    registry::{LogId, LogLeaf, PackageId, RecordId, TimestampedCheckpoint},
+    registry::{FederatedRegistryId, LogId, LogLeaf, PackageId, RecordId, TimestampedCheckpoint},
     PublishedProtoEnvelope, SerdeEnvelope, Version, VersionReq,
 };
 
@@ -379,6 +381,8 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
             .map(|(id, p)| (id.clone(), p.head_fetch_token.clone()))
             .collect::<HashMap<_, _>>();
 
+        let mut federated_checkpoints = HashMap::new();
+
         loop {
             let response: FetchLogsResponse = self
                 .api
@@ -424,6 +428,15 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                     let proto_envelope: PublishedProtoEnvelope<package::PackageRecord> =
                         record.envelope.try_into()?;
 
+                    // if federated, check federated registry is as expected from previous records
+                    if proto_envelope.registry != package.federated_registry {
+                        return Err(ClientError::PackageFederatedRegistryMismatch {
+                            id: package.id.clone(),
+                            found: proto_envelope.registry.clone(),
+                            expected: package.federated_registry.clone(),
+                        });
+                    }
+
                     // skip over records that has already seen
                     if package.head_registry_index.is_none()
                         || proto_envelope.registry_index > package.head_registry_index.unwrap()
@@ -435,8 +448,27 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                                 id: package.id.clone(),
                                 inner,
                             })?;
+                        package.federated_registry = proto_envelope.registry;
                         package.head_registry_index = Some(proto_envelope.registry_index);
                         package.head_fetch_token = Some(record.fetch_token);
+
+                        // If a federated package, record the federated checkpoint
+                        if let Some(federated_registry_id) = &package.federated_registry {
+                            let checkpoint_envelope =
+                                response.federated_checkpoints.get(federated_registry_id);
+
+                            if checkpoint_envelope.is_none() {
+                                return Err(
+                                    ClientError::PackageFederatedRegistryCheckpointMissing {
+                                        id: package.id.clone(),
+                                        registry: federated_registry_id.clone(),
+                                    },
+                                );
+                            }
+
+                            package.federated_checkpoint =
+                                Some(checkpoint_envelope.unwrap().as_ref().checkpoint.clone());
+                        }
                     }
                 }
 
@@ -448,6 +480,9 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                 }
             }
 
+            // Keep all the federated registry checkpoints until the end to verify the signatures
+            federated_checkpoints.extend(response.federated_checkpoints.into_iter());
+
             if !response.more {
                 break;
             }
@@ -458,7 +493,36 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
             }
         }
 
+        // verify checkpoint signatures
+        TimestampedCheckpoint::verify(
+            operator.state.public_key(ts_checkpoint.key_id()).ok_or(
+                ClientError::InvalidCheckpointKeyId {
+                    key_id: ts_checkpoint.key_id().clone(),
+                },
+            )?,
+            &ts_checkpoint.as_ref().encode(),
+            ts_checkpoint.signature(),
+        )
+        .or(Err(ClientError::InvalidCheckpointSignature))?;
+
+        // verify federated checkpoint signatures
+        for (registry, envelope) in federated_checkpoints.into_iter() {
+            TimestampedCheckpoint::verify(
+                operator.state.public_key(envelope.key_id()).ok_or(
+                    ClientError::InvalidCheckpointKeyId {
+                        key_id: envelope.key_id().clone(),
+                    },
+                )?,
+                &envelope.as_ref().encode(),
+                envelope.signature(),
+            )
+            .or(Err(ClientError::InvalidFederatedCheckpointSignature {
+                registry,
+            }))?;
+        }
+
         // Prove inclusion for the current log heads
+        // TODO federation for proof endpoints
         let mut leaf_indices = Vec::with_capacity(packages.len() + 1 /* for operator */);
         let mut leafs = Vec::with_capacity(leaf_indices.len());
         if let Some(index) = operator.head_registry_index {
@@ -483,8 +547,11 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
             self.api
                 .prove_inclusion(
                     InclusionRequest {
-                        log_length: checkpoint.log_length,
-                        leafs: leaf_indices,
+                        params: InclusionRequestParams {
+                            log_length: checkpoint.log_length,
+                            leafs: leaf_indices,
+                        },
+                        federated: Default::default(),
                     },
                     checkpoint,
                     &leafs,
@@ -496,8 +563,11 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
             self.api
                 .prove_log_consistency(
                     ConsistencyRequest {
-                        from: from.as_ref().checkpoint.log_length,
-                        to: ts_checkpoint.as_ref().checkpoint.log_length,
+                        params: ConsistencyRequestParams {
+                            from: from.as_ref().checkpoint.log_length,
+                            to: ts_checkpoint.as_ref().checkpoint.log_length,
+                        },
+                        federated: Default::default(),
                     },
                     Cow::Borrowed(&from.as_ref().checkpoint.log_root),
                     Cow::Borrowed(&ts_checkpoint.as_ref().checkpoint.log_root),
@@ -669,6 +739,24 @@ pub enum ClientError {
     #[error("no default registry server URL is configured")]
     NoDefaultUrl,
 
+    /// Checkpoint signature failed verification
+    #[error("invalid checkpoint key ID `{key_id}`")]
+    InvalidCheckpointKeyId {
+        /// The signature key ID.
+        key_id: signing::KeyID,
+    },
+
+    /// Checkpoint signature failed verification
+    #[error("invalid checkpoint signature")]
+    InvalidCheckpointSignature,
+
+    /// Federated checkpoint signature failed verification
+    #[error("invalid checkpoint signature for federated registry `{registry}`")]
+    InvalidFederatedCheckpointSignature {
+        /// The federated registry ID provided in the record.
+        registry: FederatedRegistryId,
+    },
+
     /// The operator failed validation.
     #[error("operator failed validation: {inner}")]
     OperatorValidationFailed {
@@ -715,6 +803,28 @@ pub enum ClientError {
         version: Version,
         /// The identifier of the package with the missing version.
         id: PackageId,
+    },
+
+    /// The package federated registry does not match previous.
+    #[error(
+        "package `{id}` has federated registry `{found:?}` different than expected `{expected:?}`"
+    )]
+    PackageFederatedRegistryMismatch {
+        /// The identifier of the package that failed validation.
+        id: PackageId,
+        /// The federated registry ID provided in the record.
+        found: Option<FederatedRegistryId>,
+        /// The expected federated registry ID.
+        expected: Option<FederatedRegistryId>,
+    },
+
+    /// The federated registry checkpoint is missing.
+    #[error("package `{id}` is missing the federated registry `{registry}` checkpoint`")]
+    PackageFederatedRegistryCheckpointMissing {
+        /// The identifier of the package that failed validation.
+        id: PackageId,
+        /// The federated registry ID provided in the record.
+        registry: FederatedRegistryId,
     },
 
     /// The package failed validation.

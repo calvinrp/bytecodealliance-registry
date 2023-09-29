@@ -9,6 +9,9 @@ use warg_crypto::prefix::VisitPrefixEncode;
 use warg_crypto::{prefix, ByteVisitor, Signable, VisitBytes};
 use wasmparser::names::KebabStr;
 
+/// Type alias for federated registry ID
+pub type FederatedRegistryId = String;
+
 /// Type alias for registry log index
 pub type RegistryIndex = usize;
 

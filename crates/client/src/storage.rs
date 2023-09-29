@@ -13,7 +13,9 @@ use warg_crypto::{
 use warg_protocol::{
     operator,
     package::{self, PackageRecord, Permission, PACKAGE_RECORD_VERSION},
-    registry::{Checkpoint, PackageId, RecordId, RegistryIndex, TimestampedCheckpoint},
+    registry::{
+        Checkpoint, FederatedRegistryId, PackageId, RecordId, RegistryIndex, TimestampedCheckpoint,
+    },
     ProtoEnvelope, SerdeEnvelope, Version,
 };
 
@@ -129,6 +131,12 @@ pub struct PackageInfo {
     /// The current package log state
     #[serde(default)]
     pub state: package::LogState,
+    /// If a federated package, the last known federated checkpoint
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub federated_checkpoint: Option<Checkpoint>,
+    /// If a federated package, the federated registry ID
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub federated_registry: Option<FederatedRegistryId>,
     /// The registry log index of the most recent record
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub head_registry_index: Option<RegistryIndex>,
@@ -144,6 +152,8 @@ impl PackageInfo {
             id: id.into(),
             checkpoint: None,
             state: package::LogState::default(),
+            federated_checkpoint: None,
+            federated_registry: None,
             head_registry_index: None,
             head_fetch_token: None,
         }
