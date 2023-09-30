@@ -535,7 +535,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                 record_id: operator.state.head().as_ref().unwrap().digest.clone(),
             });
         } else {
-            // TODO error???
+            return Err(ClientError::NoOperatorRecords);
         }
 
         let mut federated_request_params: HashMap<FederatedRegistryId, InclusionRequestParams> =
@@ -590,30 +590,28 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                     });
                 }
             } else {
-                // TODO error???
+                return Err(ClientError::PackageLogEmpty {
+                    id: package.id.clone(),
+                });
             }
         }
 
-        if !leafs.is_empty() { // TODO is this still correct for federation?
-            self.api
-                .prove_inclusion(
-                    InclusionRequest {
-                        params: InclusionRequestParams {
-                            log_length: checkpoint.log_length,
-                            leafs: leaf_indices,
-                        },
-                        federated: federated_request_params,
+        self.api
+            .prove_inclusion(
+                InclusionRequest {
+                    params: InclusionRequestParams {
+                        log_length: checkpoint.log_length,
+                        leafs: leaf_indices,
                     },
-                    checkpoint,
-                    &leafs,
-                    federated_checkpoint_leafs,
-                )
-                .await?;
-        } else {
-            // TODO error???
-        }
+                    federated: federated_request_params,
+                },
+                checkpoint,
+                &leafs,
+                federated_checkpoint_leafs,
+            )
+            .await?;
 
-        if let Some(from) = self.registry.load_checkpoint().await? {
+        if let Some(mut from) = self.registry.load_checkpoint().await? {
             let federated_log_roots: HashMap<FederatedRegistryId, (AnyHash, AnyHash)> =
                 federated_checkpoints
                     .iter()
@@ -646,6 +644,10 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                     federated_log_roots,
                 )
                 .await?;
+
+            // freshen federated checkpoints for storage
+            from.federated_checkpoints.extend(federated_checkpoints.into_iter());
+            federated_checkpoints = from.federated_checkpoints;
         }
 
         self.registry.store_operator(operator).await?;
@@ -938,6 +940,10 @@ pub enum ClientError {
         /// The reason it was rejected.
         reason: String,
     },
+
+    /// The server did not provide operator records.
+    #[error("the server did not provide any operator records")]
+    NoOperatorRecords,
 
     /// The package is still missing content.
     #[error("the package is still missing content after all content was uploaded")]
