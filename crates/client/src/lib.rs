@@ -27,7 +27,9 @@ use warg_crypto::{
 };
 use warg_protocol::{
     operator, package,
-    registry::{FederatedRegistryId, LogId, LogLeaf, PackageId, RecordId, TimestampedCheckpoint},
+    registry::{
+        Checkpoint, FederatedRegistryId, LogId, LogLeaf, PackageId, RecordId, TimestampedCheckpoint,
+    },
     PublishedProtoEnvelope, SerdeEnvelope, Version, VersionReq,
 };
 
@@ -525,6 +527,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         let mut leaf_indices = Vec::with_capacity(packages.len() + 1 /* for operator */);
         let mut leafs = Vec::with_capacity(leaf_indices.len());
 
+        // operator record inclusion
         if let Some(index) = operator.head_registry_index {
             leaf_indices.push(index);
             leafs.push(LogLeaf {
@@ -535,10 +538,49 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
             // TODO error
         }
 
+        let mut federated_request_params: HashMap<FederatedRegistryId, InclusionRequestParams> =
+            HashMap::with_capacity(federated_checkpoints.len());
+        let mut federated_checkpoint_leafs: HashMap<
+            FederatedRegistryId,
+            (Checkpoint, Vec<LogLeaf>),
+        > = HashMap::with_capacity(federated_checkpoints.len());
+
+        // package records inclusion
         for (log_id, package) in &packages {
             if let Some(index) = package.head_registry_index {
-                if let Some(federated_registry) = package.federated_registry {
+                if let Some(federated_registry) = &package.federated_registry {
                     // federated registry
+                    match federated_request_params.get_mut(federated_registry) {
+                        Some(params) => {
+                            params.leafs.push(index);
+                        }
+                        None => {
+                            let checkpoint = federated_checkpoints.get(federated_registry).unwrap();
+                            federated_request_params.insert(
+                                federated_registry.clone(),
+                                InclusionRequestParams {
+                                    log_length: checkpoint.as_ref().checkpoint.log_length,
+                                    leafs: vec![index],
+                                },
+                            );
+                        }
+                    }
+                    let log_leaf = LogLeaf {
+                        log_id: log_id.clone(),
+                        record_id: package.state.head().as_ref().unwrap().digest.clone(),
+                    };
+                    match federated_checkpoint_leafs.get_mut(federated_registry) {
+                        Some((_, ref mut leafs)) => {
+                            leafs.push(log_leaf);
+                        }
+                        None => {
+                            let checkpoint = federated_checkpoints.get(federated_registry).unwrap();
+                            federated_checkpoint_leafs.insert(
+                                federated_registry.clone(),
+                                (checkpoint.as_ref().checkpoint.clone(), vec![log_leaf]),
+                            );
+                        }
+                    }
                 } else {
                     // this registry
                     leaf_indices.push(index);
@@ -552,7 +594,8 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
             }
         }
 
-        if !leafs.is_empty() { // TODO change if for federation
+        if !leafs.is_empty() {
+            // TODO change if for federation
             self.api
                 .prove_inclusion(
                     InclusionRequest {
@@ -560,12 +603,15 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                             log_length: checkpoint.log_length,
                             leafs: leaf_indices,
                         },
-                        federated: Default::default(),
+                        federated: federated_request_params,
                     },
                     checkpoint,
                     &leafs,
+                    federated_checkpoint_leafs,
                 )
                 .await?;
+        } else {
+            // TODO error
         }
 
         if let Some(from) = self.registry.load_checkpoint().await? {
@@ -573,16 +619,17 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                 federated_checkpoints
                     .iter()
                     .filter_map(|(federated_registry, envelope)| {
-                        match from.federated_checkpoints.get(federated_registry) {
-                            Some(from_checkpoint) => Some((
-                                federated_registry.clone(),
+                        from.federated_checkpoints
+                            .get(federated_registry)
+                            .map(|from_checkpoint| {
                                 (
-                                    from_checkpoint.as_ref().checkpoint.log_root.clone(),
-                                    envelope.as_ref().checkpoint.log_root.clone(),
-                                ),
-                            )),
-                            None => None,
-                        }
+                                    federated_registry.clone(),
+                                    (
+                                        from_checkpoint.as_ref().checkpoint.log_root.clone(),
+                                        envelope.as_ref().checkpoint.log_root.clone(),
+                                    ),
+                                )
+                            })
                     })
                     .collect();
 

@@ -313,6 +313,21 @@ impl Client {
             leafs,
         )?;
 
+        // prove consistency for federated
+        for federated_registry in request.federated.into_keys() {
+            let proofs = response.federated.get(&federated_registry).ok_or_else(|| {
+                ClientError::FederatedMissingProofBundle(federated_registry.clone())
+            })?;
+            let (checkpoint, leafs) = federated_checkpoint_leafs.get(&federated_registry).unwrap();
+
+            prove_inclusion(
+                LogProofBundle::decode(proofs.log.as_slice())?,
+                MapProofBundle::decode(proofs.map.as_slice())?,
+                checkpoint,
+                leafs,
+            )?;
+        }
+
         Ok(())
     }
 
@@ -384,7 +399,7 @@ impl Client {
         for federated_registry in request.federated.into_keys() {
             // iterate over request federated to check we get all requested proof bundles
             let proof = ProofBundle::<Sha256, LogLeaf>::decode(
-                &response.federated.get(&federated_registry).ok_or_else(|| {
+                response.federated.get(&federated_registry).ok_or_else(|| {
                     ClientError::FederatedMissingProofBundle(federated_registry.clone())
                 })?,
             )
