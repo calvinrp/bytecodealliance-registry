@@ -2,7 +2,7 @@
 
 #![deny(missing_docs)]
 
-use crate::storage::PackageInfo;
+use crate::storage::{CheckpointInfo, PackageInfo};
 use anyhow::{anyhow, Context, Result};
 use reqwest::{Body, IntoUrl};
 use std::{borrow::Cow, collections::HashMap, path::PathBuf, time::Duration};
@@ -506,7 +506,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         .or(Err(ClientError::InvalidCheckpointSignature))?;
 
         // verify federated checkpoint signatures
-        for (registry, envelope) in federated_checkpoints.into_iter() {
+        for (registry, envelope) in federated_checkpoints.iter() {
             TimestampedCheckpoint::verify(
                 operator.state.public_key(envelope.key_id()).ok_or(
                     ClientError::InvalidCheckpointKeyId {
@@ -517,33 +517,42 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                 envelope.signature(),
             )
             .or(Err(ClientError::InvalidFederatedCheckpointSignature {
-                registry,
+                registry: registry.clone(),
             }))?;
         }
 
         // Prove inclusion for the current log heads
-        // TODO federation for proof endpoints
         let mut leaf_indices = Vec::with_capacity(packages.len() + 1 /* for operator */);
         let mut leafs = Vec::with_capacity(leaf_indices.len());
+
         if let Some(index) = operator.head_registry_index {
             leaf_indices.push(index);
             leafs.push(LogLeaf {
                 log_id: LogId::operator_log::<Sha256>(),
                 record_id: operator.state.head().as_ref().unwrap().digest.clone(),
             });
+        } else {
+            // TODO error
         }
 
         for (log_id, package) in &packages {
             if let Some(index) = package.head_registry_index {
-                leaf_indices.push(index);
-                leafs.push(LogLeaf {
-                    log_id: log_id.clone(),
-                    record_id: package.state.head().as_ref().unwrap().digest.clone(),
-                });
+                if let Some(federated_registry) = package.federated_registry {
+                    // federated registry
+                } else {
+                    // this registry
+                    leaf_indices.push(index);
+                    leafs.push(LogLeaf {
+                        log_id: log_id.clone(),
+                        record_id: package.state.head().as_ref().unwrap().digest.clone(),
+                    });
+                }
+            } else {
+                // TODO error
             }
         }
 
-        if !leafs.is_empty() {
+        if !leafs.is_empty() { // TODO change if for federation
             self.api
                 .prove_inclusion(
                     InclusionRequest {
@@ -560,17 +569,35 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         }
 
         if let Some(from) = self.registry.load_checkpoint().await? {
+            let federated_log_roots: HashMap<FederatedRegistryId, (AnyHash, AnyHash)> =
+                federated_checkpoints
+                    .iter()
+                    .filter_map(|(federated_registry, envelope)| {
+                        match from.federated_checkpoints.get(federated_registry) {
+                            Some(from_checkpoint) => Some((
+                                federated_registry.clone(),
+                                (
+                                    from_checkpoint.as_ref().checkpoint.log_root.clone(),
+                                    envelope.as_ref().checkpoint.log_root.clone(),
+                                ),
+                            )),
+                            None => None,
+                        }
+                    })
+                    .collect();
+
             self.api
                 .prove_log_consistency(
                     ConsistencyRequest {
                         params: ConsistencyRequestParams {
-                            from: from.as_ref().checkpoint.log_length,
+                            from: from.checkpoint.as_ref().checkpoint.log_length,
                             to: ts_checkpoint.as_ref().checkpoint.log_length,
                         },
                         federated: Default::default(),
                     },
-                    Cow::Borrowed(&from.as_ref().checkpoint.log_root),
+                    Cow::Borrowed(&from.checkpoint.as_ref().checkpoint.log_root),
                     Cow::Borrowed(&ts_checkpoint.as_ref().checkpoint.log_root),
+                    federated_log_roots,
                 )
                 .await?;
         }
@@ -582,7 +609,12 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
             self.registry.store_package(package).await?;
         }
 
-        self.registry.store_checkpoint(ts_checkpoint).await?;
+        self.registry
+            .store_checkpoint(&CheckpointInfo {
+                checkpoint: ts_checkpoint.clone(),
+                federated_checkpoints,
+            })
+            .await?;
 
         Ok(())
     }

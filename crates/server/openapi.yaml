@@ -1,7 +1,7 @@
 openapi: 3.1.0
 
 info:
-  version: 1.0.0
+  version: 0.2.0
   title: Warg Registry API
   description: |
     [warg](https://warg.io/) is an open source protocol for WebAssembly component registries.
@@ -619,12 +619,13 @@ components:
         - $ref: "#/components/schemas/ProveConsistencyRequestParams"
         - type: object
           additionalProperties: false
-          federated:
-            type: object
-            description: For federated packages, the params for consistency proof request.
-            additionalProperties:
+          properties:
+            federated:
               type: object
-              $ref: "#/components/schemas/ProveConsistencyRequestParams"
+              description: For federated packages, the params for consistency proof request.
+              additionalProperties:
+                type: object
+                $ref: "#/components/schemas/ProveConsistencyRequestParams"
     ProveConsistencyResponse:
       type: object
       description: A response containing the consistency proof bundle.
@@ -670,12 +671,13 @@ components:
         - $ref: "#/components/schemas/ProveInclusionRequestParams"
         - type: object
           additionalProperties: false
-          federated:
-            type: object
-            description: For federated packages, the params for inclusion proof request.
-            additionalProperties:
+          properties:
+            federated:
               type: object
-              $ref: "#/components/schemas/ProveInclusionRequestParams"
+              description: For federated packages, the params for inclusion proof request.
+              additionalProperties:
+                type: object
+                $ref: "#/components/schemas/ProveInclusionRequestParams"
     ProveInclusionProofBundles:
       type: object
       description: The inclusion proof bundle.

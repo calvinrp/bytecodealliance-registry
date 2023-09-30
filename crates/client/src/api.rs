@@ -5,7 +5,7 @@ use bytes::Bytes;
 use futures_util::{Stream, TryStreamExt};
 use reqwest::{Body, IntoUrl, Response, StatusCode};
 use serde::de::DeserializeOwned;
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::HashMap};
 use thiserror::Error;
 use warg_api::v1::{
     fetch::{FetchError, FetchLogsRequest, FetchLogsResponse},
@@ -19,7 +19,9 @@ use warg_api::v1::{
 };
 use warg_crypto::hash::{AnyHash, HashError, Sha256};
 use warg_protocol::{
-    registry::{Checkpoint, LogId, LogLeaf, MapLeaf, RecordId, TimestampedCheckpoint},
+    registry::{
+        Checkpoint, FederatedRegistryId, LogId, LogLeaf, MapLeaf, RecordId, TimestampedCheckpoint,
+    },
     SerdeEnvelope,
 };
 use warg_transparency::{
@@ -54,14 +56,19 @@ pub enum ClientError {
     },
     /// The provided root for a consistency proof was incorrect.
     #[error(
-        "the client failed to prove consistency: found root `{found}` but was given root `{root}`"
+        "the client failed to prove consistency (federated: {federated_registry:?}): found root `{found}` but was given root `{root}`"
     )]
     IncorrectConsistencyProof {
+        /// If federated, the federated registry ID
+        federated_registry: Option<FederatedRegistryId>,
         /// The provided root.
         root: AnyHash,
         /// The found root.
         found: AnyHash,
     },
+    /// The proof response was missing a proof bundle for a federated registry.
+    #[error("the server did not return proof bundle for federated registry `{0}`")]
+    FederatedMissingProofBundle(FederatedRegistryId),
     /// A hash returned from the server was incorrect.
     #[error("the server returned an invalid hash: {0}")]
     Hash(#[from] HashError),
@@ -252,6 +259,7 @@ impl Client {
         request: InclusionRequest,
         checkpoint: &Checkpoint,
         leafs: &[LogLeaf],
+        federated_checkpoint_leafs: HashMap<FederatedRegistryId, (Checkpoint, Vec<LogLeaf>)>,
     ) -> Result<(), ClientError> {
         let url = self.url.join(paths::prove_inclusion());
         tracing::debug!("proving checkpoint inclusion at `{url}`");
@@ -261,7 +269,51 @@ impl Client {
         )
         .await?;
 
-        Self::validate_inclusion_response(response, checkpoint, leafs)
+        let prove_inclusion = |log_proof_bundle: LogProofBundle<Sha256, LogLeaf>,
+                               map_proof_bundle: MapProofBundle<Sha256, LogId, MapLeaf>,
+                               checkpoint: &Checkpoint,
+                               leafs: &[LogLeaf]| {
+            let (log_data, _, log_inclusions) = log_proof_bundle.unbundle();
+            for (leaf, proof) in leafs.iter().zip(log_inclusions.iter()) {
+                let found = proof.evaluate_value(&log_data, leaf)?;
+                let root = checkpoint.log_root.clone().try_into()?;
+                if found != root {
+                    return Err(ClientError::Proof(ProofError::IncorrectProof {
+                        root: checkpoint.log_root.clone(),
+                        found: found.into(),
+                    }));
+                }
+            }
+
+            let map_inclusions = map_proof_bundle.unbundle();
+            for (leaf, proof) in leafs.iter().zip(map_inclusions.iter()) {
+                let found = proof.evaluate(
+                    &leaf.log_id,
+                    &MapLeaf {
+                        record_id: leaf.record_id.clone(),
+                    },
+                );
+                let root = checkpoint.map_root.clone().try_into()?;
+                if found != root {
+                    return Err(ClientError::Proof(ProofError::IncorrectProof {
+                        root: checkpoint.map_root.clone(),
+                        found: found.into(),
+                    }));
+                }
+            }
+
+            Ok(())
+        };
+
+        // prove inclusion for this registry
+        prove_inclusion(
+            LogProofBundle::decode(response.proofs.log.as_slice())?,
+            MapProofBundle::decode(response.proofs.map.as_slice())?,
+            checkpoint,
+            leafs,
+        )?;
+
+        Ok(())
     }
 
     /// Proves consistency between two log roots.
@@ -270,6 +322,7 @@ impl Client {
         request: ConsistencyRequest,
         from_log_root: Cow<'_, AnyHash>,
         to_log_root: Cow<'_, AnyHash>,
+        federated_log_roots: HashMap<FederatedRegistryId, (AnyHash, AnyHash)>,
     ) -> Result<(), ClientError> {
         let url = self.url.join(paths::prove_consistency());
         let response = into_result::<ConsistencyResponse, ProofError>(
@@ -277,38 +330,75 @@ impl Client {
         )
         .await?;
 
-        let proof = ProofBundle::<Sha256, LogLeaf>::decode(&response.proof).unwrap();
-        let (log_data, consistencies, inclusions) = proof.unbundle();
-        if !inclusions.is_empty() {
-            return Err(ClientError::Proof(ProofError::BundleFailure(
-                "expected no inclusion proofs".into(),
-            )));
-        }
+        let prove_consistency = |federated_registry: Option<FederatedRegistryId>,
+                                 proof: ProofBundle<Sha256, LogLeaf>,
+                                 from_log_root: Cow<'_, AnyHash>,
+                                 to_log_root: Cow<'_, AnyHash>| {
+            let (log_data, consistencies, inclusions) = proof.unbundle();
+            if !inclusions.is_empty() {
+                return Err(ClientError::Proof(ProofError::BundleFailure(
+                    "expected no inclusion proofs".into(),
+                )));
+            }
 
-        if consistencies.len() != 1 {
-            return Err(ClientError::Proof(ProofError::BundleFailure(
-                "expected exactly one consistency proof".into(),
-            )));
-        }
+            if consistencies.len() != 1 {
+                return Err(ClientError::Proof(ProofError::BundleFailure(
+                    "expected exactly one consistency proof".into(),
+                )));
+            }
 
-        let (from, to) = consistencies
-            .first()
-            .unwrap()
-            .evaluate(&log_data)
-            .map(|(from, to)| (AnyHash::from(from), AnyHash::from(to)))?;
+            let (from, to) = consistencies
+                .first()
+                .unwrap()
+                .evaluate(&log_data)
+                .map(|(from, to)| (AnyHash::from(from), AnyHash::from(to)))?;
 
-        if from_log_root.as_ref() != &from {
-            return Err(ClientError::IncorrectConsistencyProof {
-                root: from_log_root.into_owned(),
-                found: from,
-            });
-        }
+            if from_log_root.as_ref() != &from {
+                return Err(ClientError::IncorrectConsistencyProof {
+                    federated_registry,
+                    root: from_log_root.into_owned(),
+                    found: from,
+                });
+            }
 
-        if to_log_root.as_ref() != &to {
-            return Err(ClientError::IncorrectConsistencyProof {
-                root: to_log_root.into_owned(),
-                found: to,
-            });
+            if to_log_root.as_ref() != &to {
+                return Err(ClientError::IncorrectConsistencyProof {
+                    federated_registry,
+                    root: to_log_root.into_owned(),
+                    found: to,
+                });
+            }
+
+            Ok(())
+        };
+
+        // prove consistency for this registry
+        prove_consistency(
+            None,
+            ProofBundle::<Sha256, LogLeaf>::decode(&response.proof).unwrap(),
+            from_log_root,
+            to_log_root,
+        )?;
+
+        // prove consistency for federated
+        for federated_registry in request.federated.into_keys() {
+            // iterate over request federated to check we get all requested proof bundles
+            let proof = ProofBundle::<Sha256, LogLeaf>::decode(
+                &response.federated.get(&federated_registry).ok_or_else(|| {
+                    ClientError::FederatedMissingProofBundle(federated_registry.clone())
+                })?,
+            )
+            .unwrap();
+
+            let (from_log_root, to_log_root) =
+                federated_log_roots.get(&federated_registry).unwrap();
+
+            prove_consistency(
+                Some(federated_registry),
+                proof,
+                Cow::Borrowed(from_log_root),
+                Cow::Borrowed(to_log_root),
+            )?;
         }
 
         Ok(())
@@ -345,46 +435,5 @@ impl Client {
                 message: "returned location header was not UTF-8".into(),
             })?
             .to_string())
-    }
-
-    fn validate_inclusion_response(
-        response: InclusionResponse,
-        checkpoint: &Checkpoint,
-        leafs: &[LogLeaf],
-    ) -> Result<(), ClientError> {
-        let log_proof_bundle: LogProofBundle<Sha256, LogLeaf> =
-            LogProofBundle::decode(response.proofs.log.as_slice())?;
-        let (log_data, _, log_inclusions) = log_proof_bundle.unbundle();
-        for (leaf, proof) in leafs.iter().zip(log_inclusions.iter()) {
-            let found = proof.evaluate_value(&log_data, leaf)?;
-            let root = checkpoint.log_root.clone().try_into()?;
-            if found != root {
-                return Err(ClientError::Proof(ProofError::IncorrectProof {
-                    root: checkpoint.log_root.clone(),
-                    found: found.into(),
-                }));
-            }
-        }
-
-        let map_proof_bundle: MapProofBundle<Sha256, LogId, MapLeaf> =
-            MapProofBundle::decode(response.proofs.map.as_slice())?;
-        let map_inclusions = map_proof_bundle.unbundle();
-        for (leaf, proof) in leafs.iter().zip(map_inclusions.iter()) {
-            let found = proof.evaluate(
-                &leaf.log_id,
-                &MapLeaf {
-                    record_id: leaf.record_id.clone(),
-                },
-            );
-            let root = checkpoint.map_root.clone().try_into()?;
-            if found != root {
-                return Err(ClientError::Proof(ProofError::IncorrectProof {
-                    root: checkpoint.map_root.clone(),
-                    found: found.into(),
-                }));
-            }
-        }
-
-        Ok(())
     }
 }

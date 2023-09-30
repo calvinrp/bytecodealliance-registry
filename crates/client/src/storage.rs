@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::Stream;
 use serde::{Deserialize, Serialize};
-use std::{path::PathBuf, pin::Pin, time::SystemTime};
+use std::{collections::HashMap, path::PathBuf, pin::Pin, time::SystemTime};
 use warg_crypto::{
     hash::{AnyHash, HashAlgorithm},
     signing::{self, KeyID, PublicKey},
@@ -32,13 +32,10 @@ pub use fs::*;
 #[async_trait]
 pub trait RegistryStorage: Send + Sync {
     /// Loads most recent checkpoint
-    async fn load_checkpoint(&self) -> Result<Option<SerdeEnvelope<TimestampedCheckpoint>>>;
+    async fn load_checkpoint(&self) -> Result<Option<CheckpointInfo>>;
 
     /// Stores most recent checkpoint
-    async fn store_checkpoint(
-        &self,
-        ts_checkpoint: &SerdeEnvelope<TimestampedCheckpoint>,
-    ) -> Result<()>;
+    async fn store_checkpoint(&self, checkpoint_info: &CheckpointInfo) -> Result<()>;
 
     /// Loads the operator information from the storage.
     ///
@@ -102,6 +99,18 @@ pub trait ContentStorage: Send + Sync {
         stream: Pin<Box<dyn Stream<Item = Result<Bytes>> + Send + Sync>>,
         expected_digest: Option<&AnyHash>,
     ) -> Result<AnyHash>;
+}
+
+/// Represents information about a checkpoint and federated checkpoints.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckpointInfo {
+    /// The last known checkpoint
+    #[serde(flatten)]
+    pub checkpoint: SerdeEnvelope<TimestampedCheckpoint>,
+    /// If a federated package, the last known federated checkpoint
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub federated_checkpoints: HashMap<FederatedRegistryId, SerdeEnvelope<TimestampedCheckpoint>>,
 }
 
 /// Represents information about a registry operator.
