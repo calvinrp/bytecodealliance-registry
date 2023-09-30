@@ -535,7 +535,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                 record_id: operator.state.head().as_ref().unwrap().digest.clone(),
             });
         } else {
-            // TODO error
+            // TODO error???
         }
 
         let mut federated_request_params: HashMap<FederatedRegistryId, InclusionRequestParams> =
@@ -590,12 +590,11 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                     });
                 }
             } else {
-                // TODO error
+                // TODO error???
             }
         }
 
-        if !leafs.is_empty() {
-            // TODO change if for federation
+        if !leafs.is_empty() { // TODO is this still correct for federation?
             self.api
                 .prove_inclusion(
                     InclusionRequest {
@@ -611,7 +610,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                 )
                 .await?;
         } else {
-            // TODO error
+            // TODO error???
         }
 
         if let Some(from) = self.registry.load_checkpoint().await? {
