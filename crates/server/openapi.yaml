@@ -626,6 +626,10 @@ components:
               additionalProperties:
                 type: object
                 $ref: "#/components/schemas/ProveConsistencyRequestParams"
+              example:
+                registry.domain.com:
+                  from: 45
+                  to: 63
     ProveConsistencyResponse:
       type: object
       description: A response containing the consistency proof bundle.
@@ -646,6 +650,8 @@ components:
             description: The consistency proof bundle.
             format: byte
             example: "ZXhhbXBsZQ=="
+          example:
+            registry.domain.com: "ZXhhbXBsZQ=="
     ProveInclusionRequestParams:
       type: object
       description: Inclusion proof request params.
