@@ -678,6 +678,10 @@ components:
               additionalProperties:
                 type: object
                 $ref: "#/components/schemas/ProveInclusionRequestParams"
+              example:
+                registry.domain.com:
+                  logLength: 103
+                  leafs: [10, 54]
     ProveInclusionProofBundles:
       type: object
       description: The inclusion proof bundle.
@@ -704,12 +708,17 @@ components:
         - $ref: "#/components/schemas/ProveInclusionProofBundles"
         - type: object
           additionalProperties: false
-          federated:
-            type: object
-            description: For federated packages, the inclusion proof bundles.
-            additionalProperties:
+          properties:
+            federated:
               type: object
-              $ref: "#/components/schemas/ProveInclusionProofBundles"
+              description: For federated packages, the inclusion proof bundles.
+              additionalProperties:
+                type: object
+                $ref: "#/components/schemas/ProveInclusionProofBundles"
+              example:
+                registry.domain.com:
+                  log: "ZXhhbXBsZQ=="
+                  map: "ZXhhbXBsZQ=="
     SourcingRecord:
       type: object
       description: The package record is sourcing content.
