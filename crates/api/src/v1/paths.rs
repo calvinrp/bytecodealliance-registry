@@ -13,8 +13,8 @@ pub fn fetch_checkpoint() -> &'static str {
 }
 
 /// The path of the "publish package record" API.
-pub fn publish_package_record() -> &'static str {
-    "v1/package"
+pub fn publish_package_record(log_id: &LogId) -> String {
+    format!("v1/package/{log_id}/record")
 }
 
 /// The path for a package record.

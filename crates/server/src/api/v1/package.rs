@@ -63,7 +63,7 @@ impl Config {
 
     pub fn into_router(self) -> Router {
         Router::new()
-            .route("/", post(publish_record))
+            .route("/:log_id/record", post(publish_record))
             .route("/:log_id/record/:record_id", get(get_record))
             .route(
                 "/:log_id/record/:record_id/content/:digest",
@@ -193,9 +193,16 @@ impl IntoResponse for PackageApiError {
 #[debug_handler]
 async fn publish_record(
     State(config): State<Config>,
+    Path(log_id): Path<LogId>,
     Json(body): Json<PublishRecordRequest<'static>>,
 ) -> Result<impl IntoResponse, PackageApiError> {
-    let log_id = LogId::package_log::<Sha256>(&body.id);
+    let expected_log_id = LogId::package_log::<Sha256>(&body.id);
+    if expected_log_id != log_id {
+        return Err(PackageApiError::bad_request(format!(
+            "package log identifier `{expected_log_id}` derived from `{id}` does not match provided log identifier `{log_id}`",
+            id = body.id
+        )));
+    }
 
     let record: ProtoEnvelope<package::PackageRecord> = body
         .record
