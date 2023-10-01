@@ -334,9 +334,8 @@ async fn test_invalid_signature(config: &Config) -> Result<()> {
 
     // Use a reqwest client directly here as we're going to be sending an invalid signature
     let id = PackageId::new(PACKAGE_ID)?;
-    let log_id = LogId::package_log::<Sha256>(&id);
     let url = Url::parse(config.default_url.as_ref().unwrap())?
-        .join(&paths::publish_package_record(&log_id))
+        .join(&paths::publish_package_record())
         .unwrap();
 
     let signing_key = test_signing_key();

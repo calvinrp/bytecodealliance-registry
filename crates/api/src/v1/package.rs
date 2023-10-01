@@ -61,9 +61,10 @@ pub struct PublishRecordRequest<'a> {
 
 /// Represents a package record API entity in a registry.
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PackageRecord {
     /// The identifier of the package record.
-    pub id: RecordId,
+    pub record_id: RecordId,
     /// The current state of the package.
     #[serde(flatten)]
     pub state: PackageRecordState,

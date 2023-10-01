@@ -145,14 +145,11 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         let log_id = LogId::package_log::<Sha256>(&package.id);
         let record = self
             .api
-            .publish_package_record(
-                &log_id,
-                PublishRecordRequest {
-                    id: Cow::Borrowed(&package.id),
-                    record: Cow::Owned(record.into()),
-                    content_sources: Default::default(),
-                },
-            )
+            .publish_package_record(PublishRecordRequest {
+                id: Cow::Borrowed(&package.id),
+                record: Cow::Owned(record.into()),
+                content_sources: Default::default(),
+            })
             .await
             .map_err(|e| {
                 ClientError::translate_log_not_found(e, |id| {
@@ -192,7 +189,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                     api::ClientError::Package(PackageError::Rejection(reason)) => {
                         ClientError::PublishRejected {
                             id: package.id.clone(),
-                            record_id: record.id.clone(),
+                            record_id: record.record_id.clone(),
                             reason,
                         }
                     }
@@ -200,7 +197,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                 })?;
         }
 
-        Ok(record.id)
+        Ok(record.record_id)
     }
 
     /// Waits for a package record to transition to the `published` state.

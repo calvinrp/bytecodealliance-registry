@@ -63,7 +63,7 @@ impl Config {
 
     pub fn into_router(self) -> Router {
         Router::new()
-            .route("/:log_id/record", post(publish_record))
+            .route("/", post(publish_record))
             .route("/:log_id/record/:record_id", get(get_record))
             .route(
                 "/:log_id/record/:record_id/content/:digest",
@@ -193,16 +193,9 @@ impl IntoResponse for PackageApiError {
 #[debug_handler]
 async fn publish_record(
     State(config): State<Config>,
-    Path(log_id): Path<LogId>,
     Json(body): Json<PublishRecordRequest<'static>>,
 ) -> Result<impl IntoResponse, PackageApiError> {
-    let expected_log_id = LogId::package_log::<Sha256>(&body.id);
-    if expected_log_id != log_id {
-        return Err(PackageApiError::bad_request(format!(
-            "package log identifier `{expected_log_id}` derived from `{id}` does not match provided log identifier `{log_id}`",
-            id = body.id
-        )));
-    }
+    let log_id = LogId::package_log::<Sha256>(&body.id);
 
     let record: ProtoEnvelope<package::PackageRecord> = body
         .record
@@ -250,7 +243,7 @@ async fn publish_record(
         return Ok((
             StatusCode::ACCEPTED,
             Json(PackageRecord {
-                id: record_id,
+                record_id,
                 state: PackageRecordState::Processing,
             }),
         ));
@@ -260,7 +253,7 @@ async fn publish_record(
     Ok((
         StatusCode::ACCEPTED,
         Json(PackageRecord {
-            id: record_id,
+            record_id,
             state: PackageRecordState::Sourcing { missing_content },
         }),
     ))
@@ -281,17 +274,17 @@ async fn get_record(
         RecordStatus::MissingContent(missing) => {
             let missing_content = config.build_missing_content(&log_id, &record_id, &missing);
             Ok(Json(PackageRecord {
-                id: record_id,
+                record_id,
                 state: PackageRecordState::Sourcing { missing_content },
             }))
         }
         // Validated is considered still processing until included in a checkpoint
         RecordStatus::Pending | RecordStatus::Validated => Ok(Json(PackageRecord {
-            id: record_id,
+            record_id,
             state: PackageRecordState::Processing,
         })),
         RecordStatus::Rejected(reason) => Ok(Json(PackageRecord {
-            id: record_id,
+            record_id,
             state: PackageRecordState::Rejected { reason },
         })),
         RecordStatus::Published => {
@@ -313,7 +306,7 @@ async fn get_record(
             let registry_index = record.registry_index.unwrap();
 
             Ok(Json(PackageRecord {
-                id: record_id,
+                record_id,
                 state: PackageRecordState::Published {
                     record: record.envelope.into(),
                     federated: None,

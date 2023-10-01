@@ -193,10 +193,9 @@ impl Client {
     /// Publish a new record to a package log.
     pub async fn publish_package_record(
         &self,
-        log_id: &LogId,
         request: PublishRecordRequest<'_>,
     ) -> Result<PackageRecord, ClientError> {
-        let url = self.url.join(&paths::publish_package_record(log_id));
+        let url = self.url.join(paths::publish_package_record());
         tracing::debug!(
             "appending record to package `{id}` at `{url}`",
             id = request.id
