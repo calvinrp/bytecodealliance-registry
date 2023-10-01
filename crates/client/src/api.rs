@@ -446,7 +446,7 @@ impl Client {
         };
 
         let headers = headers
-            .into_iter()
+            .iter()
             .map(|(k, v)| {
                 let name = HeaderName::try_from(k).map_err(|_| {
                     ClientError::InvalidUploadHttpHeader(k.to_string(), v.to_string())
