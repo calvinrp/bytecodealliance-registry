@@ -25,12 +25,15 @@ pub enum ContentSource {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum UploadEndpoint {
-    /// Content may be uploaded via HTTP POST to the given URL.
-    /// If the endpoint responds with "201 Created" and a Location header, that
-    /// header's value will be the content source.
-    HttpPost {
+    /// Content may be uploaded via HTTP request to the given URL.
+    Http {
+        /// The http method for the upload request.
+        method: String,
         /// The URL to POST content to.
         url: String,
+        /// Optional header names and values for the upload request.
+        #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+        headers: HashMap<String, String>,
     },
 }
 

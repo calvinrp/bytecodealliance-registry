@@ -3,7 +3,10 @@
 use anyhow::{anyhow, Result};
 use bytes::Bytes;
 use futures_util::{Stream, TryStreamExt};
-use reqwest::{Body, IntoUrl, Response, StatusCode};
+use reqwest::{
+    header::{HeaderMap, HeaderName, HeaderValue},
+    Body, IntoUrl, Method, Response, StatusCode,
+};
 use serde::de::DeserializeOwned;
 use std::{borrow::Cow, collections::HashMap};
 use thiserror::Error;
@@ -87,6 +90,12 @@ pub enum ClientError {
     /// All sources for the given content digest returned an error response.
     #[error("all sources for content digest `{0}` returned an error response")]
     AllSourcesFailed(AnyHash),
+    /// Invalid upload HTTP method.
+    #[error("server returned an invalid upload HTTP method `{0}`, requires `POST` or `PUT`")]
+    InvalidUploadHttpMethod(String),
+    /// Invalid upload HTTP method.
+    #[error("server returned an invalid upload HTTP header `{0}: {1}`")]
+    InvalidUploadHttpHeader(String, String),
     /// An other error occurred during the requested operation.
     #[error(transparent)]
     Other(#[from] anyhow::Error),
@@ -422,33 +431,48 @@ impl Client {
     /// Uploads package content to the registry.
     pub async fn upload_content(
         &self,
+        method: &str,
         url: &str,
+        headers: &HashMap<String, String>,
         content: impl Into<Body>,
-    ) -> Result<String, ClientError> {
+    ) -> Result<(), ClientError> {
         // Upload URLs may be relative to the registry URL.
         let url = self.url.join(url);
 
+        let method = match method {
+            "POST" => Method::POST,
+            "PUT" => Method::PUT,
+            method => return Err(ClientError::InvalidUploadHttpMethod(method.to_string())),
+        };
+
+        let headers = headers
+            .into_iter()
+            .map(|(k, v)| {
+                let name = HeaderName::try_from(k).map_err(|_| {
+                    ClientError::InvalidUploadHttpHeader(k.to_string(), v.to_string())
+                })?;
+                let value = HeaderValue::try_from(k).map_err(|_| {
+                    ClientError::InvalidUploadHttpHeader(k.to_string(), v.to_string())
+                })?;
+                Ok((name, value))
+            })
+            .collect::<Result<HeaderMap, ClientError>>()?;
+
         tracing::debug!("uploading content to `{url}`");
 
-        let response = self.client.post(url).body(content).send().await?;
+        let response = self
+            .client
+            .request(method, url)
+            .headers(headers)
+            .body(content)
+            .send()
+            .await?;
         if !response.status().is_success() {
             return Err(ClientError::Package(
                 deserialize::<PackageError>(response).await?,
             ));
         }
 
-        Ok(response
-            .headers()
-            .get("location")
-            .ok_or_else(|| ClientError::UnexpectedResponse {
-                status: response.status(),
-                message: "location header missing from response".into(),
-            })?
-            .to_str()
-            .map_err(|_| ClientError::UnexpectedResponse {
-                status: response.status(),
-                message: "returned location header was not UTF-8".into(),
-            })?
-            .to_string())
+        Ok(())
     }
 }

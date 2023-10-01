@@ -106,7 +106,11 @@ impl Config {
                 (
                     digest.clone(),
                     MissingContent {
-                        upload: vec![UploadEndpoint::HttpPost { url }],
+                        upload: vec![UploadEndpoint::Http {
+                            method: "POST".to_string(),
+                            url,
+                            headers: HashMap::new(),
+                        }],
                     },
                 )
             })

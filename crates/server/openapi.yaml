@@ -925,7 +925,8 @@ components:
       example:
         ? "sha256:7d865e959b2466918c9863afca942d0fb89d7c9ac0c99bafc3749504ded9773"
         : upload:
-            - type: httpPost
+            - type: http
+              method: POST
               url: https://example.com/7d865e959b2466918c9863afca942d0fb89d7c9ac0c99bafc3749504ded9773
     MissingContent:
       description: Information about missing content.
@@ -935,25 +936,42 @@ components:
           type: array 
           items:
             oneOf:
-              - "$ref": "#/components/schemas/HttpPostUpload"
+              - "$ref": "#/components/schemas/HttpUpload"
             discriminator:
               propertyName: type
               mapping:
-                httpPost: "#/components/schemas/HttpPostUpload"
-    HttpPostUpload:
+                httpPost: "#/components/schemas/HttpUpload"
+    HttpUpload:
       type: object
-      description: A HTTP POST upload endpoint.
+      description: A HTTP upload endpoint.
+      required:
+        - type
+        - method
+        - url
       properties:
         type:
           type: string
           description: The type of upload endpoint.
-          enum: [httpPost]
-          example: httpPost
+          enum: [http]
+          example: http
+        method:
+          type: string
+          description: The HTTP method for the upload request. Uppercase is required.
+          enum: [POST, PUT]
+          example: POST
         url:
           type: string
           description: The URL of the upload endpoint, which may be relative to the API base URL.
           example: https://example.com/contents.wasm
           format: uri
+        headers:
+          type: object
+          description: The HTTP headers for upload request.
+          additionalProperties:
+            type: string
+            description: The HTTP header value.
+          example:
+            authorization: Bearer asdf
     ContentSourceMap:
       type: object
       description: The map of content digest to sources.

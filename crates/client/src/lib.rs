@@ -167,13 +167,20 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         // TODO: parallelize this
         for (digest, MissingContent { upload }) in record.missing_content() {
             // Upload the missing content, if the registry supports it
-            let Some(UploadEndpoint::HttpPost { url }) = upload.first() else {
+            let Some(UploadEndpoint::Http {
+                method,
+                url,
+                headers,
+            }) = upload.first()
+            else {
                 continue;
             };
 
             self.api
                 .upload_content(
+                    method,
                     url,
+                    headers,
                     Body::wrap_stream(self.content.load_content(digest).await?.ok_or_else(
                         || ClientError::ContentNotFound {
                             digest: digest.clone(),
