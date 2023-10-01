@@ -85,7 +85,8 @@ async fn get_records<R: Decode>(
             |(record_id, c, index)| match ProtoEnvelope::from_protobuf(&c) {
                 Ok(envelope) => Ok(PublishedProtoEnvelope {
                     envelope,
-                    registry: None,
+                    federated: None,
+                    federated_log_id: None,
                     registry_index: index.unwrap() as RegistryIndex,
                 }),
                 Err(e) => Err(DataStoreError::InvalidRecordContents {

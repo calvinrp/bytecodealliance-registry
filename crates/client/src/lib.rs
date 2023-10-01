@@ -431,10 +431,10 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                         record.envelope.try_into()?;
 
                     // if federated, check federated registry is as expected from previous records
-                    if proto_envelope.registry != package.federated_registry {
+                    if proto_envelope.federated != package.federated_registry {
                         return Err(ClientError::PackageFederatedRegistryMismatch {
                             id: package.id.clone(),
-                            found: proto_envelope.registry.clone(),
+                            found: proto_envelope.federated.clone(),
                             expected: package.federated_registry.clone(),
                         });
                     }
@@ -450,7 +450,8 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                                 id: package.id.clone(),
                                 inner,
                             })?;
-                        package.federated_registry = proto_envelope.registry;
+                        package.federated_registry = proto_envelope.federated;
+                        package.federated_registry_log_id = proto_envelope.federated_log_id;
                         package.head_registry_index = Some(proto_envelope.registry_index);
                         package.head_fetch_token = Some(record.fetch_token);
 
@@ -565,8 +566,10 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                             );
                         }
                     }
+                    // important to use the federated registry log_id since it may be different
+                    // than the current registry log_id
                     let log_leaf = LogLeaf {
-                        log_id: log_id.clone(),
+                        log_id: package.federated_registry_log_id.clone().unwrap(),
                         record_id: package.state.head().as_ref().unwrap().digest.clone(),
                     };
                     match federated_checkpoint_leafs.get_mut(federated_registry) {
@@ -646,7 +649,8 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                 .await?;
 
             // freshen federated checkpoints for storage
-            from.federated_checkpoints.extend(federated_checkpoints.into_iter());
+            from.federated_checkpoints
+                .extend(federated_checkpoints.into_iter());
             federated_checkpoints = from.federated_checkpoints;
         }
 

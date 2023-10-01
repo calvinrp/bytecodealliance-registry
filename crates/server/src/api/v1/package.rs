@@ -312,7 +312,8 @@ async fn get_record(
                 id: record_id,
                 state: PackageRecordState::Published {
                     record: record.envelope.into(),
-                    registry: None,
+                    federated: None,
+                    federated_log_id: None,
                     registry_index,
                     content_sources,
                 },

@@ -781,10 +781,13 @@ components:
           description: The state of the package record.
           enum: [published]
           example: published
-        registry:
+        federated:
           type: string
           description: If a federated package, the federated registry ID.
           example: "registry.example.com"
+        federatedLogId:
+          $ref: "#/components/schemas/AnyHash"
+          description: If a federated package, the federated registry log ID.
         registryIndex:
           type: integer
           description: The index of the record in the registry log.
@@ -881,10 +884,13 @@ components:
             - registryIndex
             - fetchToken
           properties:
-            registry:
+            federated:
               type: string
               description: If a federated package, the federated registry ID.
               example: "registry.example.com"
+            federatedLogId:
+              $ref: "#/components/schemas/AnyHash"
+              description: If a federated package, the federated registry ID.
             registryIndex:
               type: integer
               description: The index of the published record in the registry log.

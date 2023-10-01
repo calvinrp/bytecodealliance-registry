@@ -111,7 +111,10 @@ pub enum PackageRecordState {
         content_sources: HashMap<AnyHash, Vec<ContentSource>>,
         /// If it is a federated log, the registry identifier.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        registry: Option<FederatedRegistryId>,
+        federated: Option<FederatedRegistryId>,
+        /// If it is a federated log, the registry LogId.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        federated_log_id: Option<LogId>,
         /// The published index of the record in the registry log.
         registry_index: RegistryIndex,
     },
