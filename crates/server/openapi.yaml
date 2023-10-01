@@ -787,7 +787,7 @@ components:
           example: "registry.example.com"
         federatedLogId:
           $ref: "#/components/schemas/AnyHash"
-          description: If a federated package, the federated registry log ID.
+          description: If a federated package, the federated registry logId.
         registryIndex:
           type: integer
           description: The index of the record in the registry log.
@@ -890,7 +890,7 @@ components:
               example: "registry.example.com"
             federatedLogId:
               $ref: "#/components/schemas/AnyHash"
-              description: If a federated package, the federated registry ID.
+              description: If a federated package, the federated registry logId.
             registryIndex:
               type: integer
               description: The index of the published record in the registry log.
