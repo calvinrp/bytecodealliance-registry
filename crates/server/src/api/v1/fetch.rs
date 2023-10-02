@@ -176,7 +176,7 @@ async fn fetch_ledger(
 ) -> Result<Json<FetchLedgerResponse>, FetchApiError> {
     const LIMIT: usize = 1000; // TODO limit query param
 
-    let records = config
+    let ledger = config
         .core_service
         .store()
         .get_log_leafs_starting_with_registry_index(starting_index, LIMIT)
@@ -185,11 +185,11 @@ async fn fetch_ledger(
         .map(|log_leaf| (log_leaf.log_id, log_leaf.record_id))
         .collect::<Vec<(LogId, RecordId)>>();
 
-    let more = records.len() <= LIMIT;
+    let more = ledger.len() <= LIMIT;
 
     Ok(Json(FetchLedgerResponse {
         more,
         starting_index,
-        records,
+        ledger,
     }))
 }

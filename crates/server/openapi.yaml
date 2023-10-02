@@ -35,7 +35,7 @@ servers:
 paths:
   /fetch/ledger/{startingIndex}:
     get:
-      summary: Fetch registry ledger.
+      summary: Fetch registry ledger
       operationId: fetchLedger
       security: []
       tags:
@@ -1145,7 +1145,7 @@ components:
           type: integer
           description: The starting registry index for the batch of ledger records.
           example: 0
-        records:
+        ledger:
           type: array
           description: The array of ledger logId and recordId records.
           items:

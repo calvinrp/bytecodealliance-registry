@@ -21,7 +21,7 @@ pub struct FetchLedgerResponse {
     pub starting_index: RegistryLen,
     /// The ledger records.
     #[serde(default)]
-    pub records: Vec<(LogId, RecordId)>,
+    pub ledger: Vec<(LogId, RecordId)>,
 }
 
 /// Wraps the PublishedProtoEnvelopeBody with a fetch token.
