@@ -39,7 +39,7 @@ paths:
       operationId: fetchLedger
       security: []
       tags:
-        - ledger
+        - fetch
       description: |
         Fetch registry ledger logId's and recordId's.
       parameters:
@@ -1139,7 +1139,7 @@ components:
 
             This occurs when the number of records returned for a log reaches the requested limit.
 
-            If `true`, the client should make another request with the new last known record identifiers.
+            If `true`, the client should make another request with the last know registry index as the startingIndex path parameter.
           example: false
         startingIndex:
           type: integer
