@@ -480,7 +480,7 @@ components:
           example:
             "sha256:7d865e959b2466918c9863afca942d0fb89d7c9ac0c99bafc3749504ded9773": "sha256:7d865e959b2466918c9863afca942d0fb89d7c9ac0c99bafc3749504ded97730"
             "sha256:b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c": null
-    FetchLedgerResponse:
+    LedgerRecords:
       type: object
       description: A response containing the requested ledger records.
       additionalProperties: false
