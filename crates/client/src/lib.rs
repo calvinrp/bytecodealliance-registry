@@ -2,7 +2,7 @@
 
 #![deny(missing_docs)]
 
-use crate::storage::PackageInfo;
+use crate::storage::{CheckpointInfo, PackageInfo};
 use anyhow::{anyhow, Context, Result};
 use reqwest::{Body, IntoUrl};
 use std::{borrow::Cow, collections::HashMap, path::PathBuf, time::Duration};
@@ -17,15 +17,19 @@ use warg_api::v1::{
         MissingContent, PackageError, PackageRecord, PackageRecordState, PublishRecordRequest,
         UploadEndpoint,
     },
-    proof::{ConsistencyRequest, InclusionRequest},
+    proof::{
+        ConsistencyRequest, ConsistencyRequestParams, InclusionRequest, InclusionRequestParams,
+    },
 };
 use warg_crypto::{
     hash::{AnyHash, Hash, Sha256},
-    signing,
+    signing, Encode, Signable,
 };
 use warg_protocol::{
     operator, package,
-    registry::{LogId, LogLeaf, PackageId, RecordId, TimestampedCheckpoint},
+    registry::{
+        Checkpoint, FederatedRegistryId, LogId, LogLeaf, PackageId, RecordId, TimestampedCheckpoint,
+    },
     PublishedProtoEnvelope, SerdeEnvelope, Version, VersionReq,
 };
 
@@ -163,13 +167,20 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         // TODO: parallelize this
         for (digest, MissingContent { upload }) in record.missing_content() {
             // Upload the missing content, if the registry supports it
-            let Some(UploadEndpoint::HttpPost { url }) = upload.first() else {
+            let Some(UploadEndpoint::Http {
+                method,
+                url,
+                headers,
+            }) = upload.first()
+            else {
                 continue;
             };
 
             self.api
                 .upload_content(
+                    method,
                     url,
+                    headers,
                     Body::wrap_stream(self.content.load_content(digest).await?.ok_or_else(
                         || ClientError::ContentNotFound {
                             digest: digest.clone(),
@@ -181,7 +192,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                     api::ClientError::Package(PackageError::Rejection(reason)) => {
                         ClientError::PublishRejected {
                             id: package.id.clone(),
-                            record_id: record.id.clone(),
+                            record_id: record.record_id.clone(),
                             reason,
                         }
                     }
@@ -189,7 +200,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                 })?;
         }
 
-        Ok(record.id)
+        Ok(record.record_id)
     }
 
     /// Waits for a package record to transition to the `published` state.
@@ -286,7 +297,6 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
     ) -> Result<Option<PackageDownload>, ClientError> {
         tracing::info!("downloading package `{id}` with requirement `{requirement}`");
         let info = self.fetch_package(id).await?;
-        let log_id = LogId::package_log::<Sha256>(&info.id);
 
         match info.state.find_latest_release(requirement) {
             Some(release) => {
@@ -294,9 +304,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                     .content()
                     .context("invalid state: not yanked but missing content")?
                     .clone();
-                let path = self
-                    .download_content(&log_id, &release.record_id, &digest)
-                    .await?;
+                let path = self.download_content(&digest).await?;
                 Ok(Some(PackageDownload {
                     version: release.version.clone(),
                     digest,
@@ -323,7 +331,6 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
     ) -> Result<PackageDownload, ClientError> {
         tracing::info!("downloading version {version} of package `{package}`");
         let info = self.fetch_package(package).await?;
-        let log_id = LogId::package_log::<Sha256>(&info.id);
 
         let release =
             info.state
@@ -343,9 +350,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         Ok(PackageDownload {
             version: version.clone(),
             digest: digest.clone(),
-            path: self
-                .download_content(&log_id, &release.record_id, digest)
-                .await?,
+            path: self.download_content(digest).await?,
         })
     }
 
@@ -378,6 +383,8 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
             .iter()
             .map(|(id, p)| (id.clone(), p.head_fetch_token.clone()))
             .collect::<HashMap<_, _>>();
+
+        let mut federated_checkpoints = HashMap::new();
 
         loop {
             let response: FetchLogsResponse = self
@@ -424,6 +431,15 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                     let proto_envelope: PublishedProtoEnvelope<package::PackageRecord> =
                         record.envelope.try_into()?;
 
+                    // if federated, check federated registry is as expected from previous records
+                    if proto_envelope.federated != package.federated_registry {
+                        return Err(ClientError::PackageFederatedRegistryMismatch {
+                            id: package.id.clone(),
+                            found: proto_envelope.federated.clone(),
+                            expected: package.federated_registry.clone(),
+                        });
+                    }
+
                     // skip over records that has already seen
                     if package.head_registry_index.is_none()
                         || proto_envelope.registry_index > package.head_registry_index.unwrap()
@@ -435,8 +451,28 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                                 id: package.id.clone(),
                                 inner,
                             })?;
+                        package.federated_registry = proto_envelope.federated;
+                        package.federated_registry_log_id = proto_envelope.federated_log_id;
                         package.head_registry_index = Some(proto_envelope.registry_index);
                         package.head_fetch_token = Some(record.fetch_token);
+
+                        // If a federated package, record the federated checkpoint
+                        if let Some(federated_registry_id) = &package.federated_registry {
+                            let checkpoint_envelope =
+                                response.federated_checkpoints.get(federated_registry_id);
+
+                            if checkpoint_envelope.is_none() {
+                                return Err(
+                                    ClientError::PackageFederatedRegistryCheckpointMissing {
+                                        id: package.id.clone(),
+                                        registry: federated_registry_id.clone(),
+                                    },
+                                );
+                            }
+
+                            package.federated_checkpoint =
+                                Some(checkpoint_envelope.unwrap().as_ref().checkpoint.clone());
+                        }
                     }
                 }
 
@@ -448,6 +484,9 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                 }
             }
 
+            // Keep all the federated registry checkpoints until the end to verify the signatures
+            federated_checkpoints.extend(response.federated_checkpoints.into_iter());
+
             if !response.more {
                 break;
             }
@@ -458,51 +497,162 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
             }
         }
 
+        // verify checkpoint signatures
+        TimestampedCheckpoint::verify(
+            operator.state.public_key(ts_checkpoint.key_id()).ok_or(
+                ClientError::InvalidCheckpointKeyId {
+                    key_id: ts_checkpoint.key_id().clone(),
+                },
+            )?,
+            &ts_checkpoint.as_ref().encode(),
+            ts_checkpoint.signature(),
+        )
+        .or(Err(ClientError::InvalidCheckpointSignature))?;
+
+        // verify federated checkpoint signatures
+        for (registry, envelope) in federated_checkpoints.iter() {
+            TimestampedCheckpoint::verify(
+                operator.state.public_key(envelope.key_id()).ok_or(
+                    ClientError::InvalidCheckpointKeyId {
+                        key_id: envelope.key_id().clone(),
+                    },
+                )?,
+                &envelope.as_ref().encode(),
+                envelope.signature(),
+            )
+            .or(Err(ClientError::InvalidFederatedCheckpointSignature {
+                registry: registry.clone(),
+            }))?;
+        }
+
         // Prove inclusion for the current log heads
         let mut leaf_indices = Vec::with_capacity(packages.len() + 1 /* for operator */);
         let mut leafs = Vec::with_capacity(leaf_indices.len());
+
+        // operator record inclusion
         if let Some(index) = operator.head_registry_index {
             leaf_indices.push(index);
             leafs.push(LogLeaf {
                 log_id: LogId::operator_log::<Sha256>(),
                 record_id: operator.state.head().as_ref().unwrap().digest.clone(),
             });
+        } else {
+            return Err(ClientError::NoOperatorRecords);
         }
 
+        let mut federated_request_params: HashMap<FederatedRegistryId, InclusionRequestParams> =
+            HashMap::with_capacity(federated_checkpoints.len());
+        let mut federated_checkpoint_leafs: HashMap<
+            FederatedRegistryId,
+            (Checkpoint, Vec<LogLeaf>),
+        > = HashMap::with_capacity(federated_checkpoints.len());
+
+        // package records inclusion
         for (log_id, package) in &packages {
             if let Some(index) = package.head_registry_index {
-                leaf_indices.push(index);
-                leafs.push(LogLeaf {
-                    log_id: log_id.clone(),
-                    record_id: package.state.head().as_ref().unwrap().digest.clone(),
+                if let Some(federated_registry) = &package.federated_registry {
+                    // federated registry
+                    match federated_request_params.get_mut(federated_registry) {
+                        Some(params) => {
+                            params.leafs.push(index);
+                        }
+                        None => {
+                            let checkpoint = federated_checkpoints.get(federated_registry).unwrap();
+                            federated_request_params.insert(
+                                federated_registry.clone(),
+                                InclusionRequestParams {
+                                    log_length: checkpoint.as_ref().checkpoint.log_length,
+                                    leafs: vec![index],
+                                },
+                            );
+                        }
+                    }
+                    // important to use the federated registry log_id since it may be different
+                    // than the current registry log_id
+                    let log_leaf = LogLeaf {
+                        log_id: package.federated_registry_log_id.clone().unwrap(),
+                        record_id: package.state.head().as_ref().unwrap().digest.clone(),
+                    };
+                    match federated_checkpoint_leafs.get_mut(federated_registry) {
+                        Some((_, ref mut leafs)) => {
+                            leafs.push(log_leaf);
+                        }
+                        None => {
+                            let checkpoint = federated_checkpoints.get(federated_registry).unwrap();
+                            federated_checkpoint_leafs.insert(
+                                federated_registry.clone(),
+                                (checkpoint.as_ref().checkpoint.clone(), vec![log_leaf]),
+                            );
+                        }
+                    }
+                } else {
+                    // this registry
+                    leaf_indices.push(index);
+                    leafs.push(LogLeaf {
+                        log_id: log_id.clone(),
+                        record_id: package.state.head().as_ref().unwrap().digest.clone(),
+                    });
+                }
+            } else {
+                return Err(ClientError::PackageLogEmpty {
+                    id: package.id.clone(),
                 });
             }
         }
 
-        if !leafs.is_empty() {
-            self.api
-                .prove_inclusion(
-                    InclusionRequest {
+        self.api
+            .prove_inclusion(
+                InclusionRequest {
+                    params: InclusionRequestParams {
                         log_length: checkpoint.log_length,
                         leafs: leaf_indices,
                     },
-                    checkpoint,
-                    &leafs,
-                )
-                .await?;
-        }
+                    federated: federated_request_params,
+                },
+                checkpoint,
+                &leafs,
+                federated_checkpoint_leafs,
+            )
+            .await?;
 
-        if let Some(from) = self.registry.load_checkpoint().await? {
+        if let Some(mut from) = self.registry.load_checkpoint().await? {
+            let federated_log_roots: HashMap<FederatedRegistryId, (AnyHash, AnyHash)> =
+                federated_checkpoints
+                    .iter()
+                    .filter_map(|(federated_registry, envelope)| {
+                        from.federated_checkpoints
+                            .get(federated_registry)
+                            .map(|from_checkpoint| {
+                                (
+                                    federated_registry.clone(),
+                                    (
+                                        from_checkpoint.as_ref().checkpoint.log_root.clone(),
+                                        envelope.as_ref().checkpoint.log_root.clone(),
+                                    ),
+                                )
+                            })
+                    })
+                    .collect();
+
             self.api
                 .prove_log_consistency(
                     ConsistencyRequest {
-                        from: from.as_ref().checkpoint.log_length,
-                        to: ts_checkpoint.as_ref().checkpoint.log_length,
+                        params: ConsistencyRequestParams {
+                            from: from.checkpoint.as_ref().checkpoint.log_length,
+                            to: ts_checkpoint.as_ref().checkpoint.log_length,
+                        },
+                        federated: Default::default(),
                     },
-                    Cow::Borrowed(&from.as_ref().checkpoint.log_root),
+                    Cow::Borrowed(&from.checkpoint.as_ref().checkpoint.log_root),
                     Cow::Borrowed(&ts_checkpoint.as_ref().checkpoint.log_root),
+                    federated_log_roots,
                 )
                 .await?;
+
+            // freshen federated checkpoints for storage
+            from.federated_checkpoints
+                .extend(federated_checkpoints.into_iter());
+            federated_checkpoints = from.federated_checkpoints;
         }
 
         self.registry.store_operator(operator).await?;
@@ -512,7 +662,12 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
             self.registry.store_package(package).await?;
         }
 
-        self.registry.store_checkpoint(ts_checkpoint).await?;
+        self.registry
+            .store_checkpoint(&CheckpointInfo {
+                checkpoint: ts_checkpoint.clone(),
+                federated_checkpoints,
+            })
+            .await?;
 
         Ok(())
     }
@@ -555,12 +710,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         Ok(record)
     }
 
-    async fn download_content(
-        &self,
-        log_id: &LogId,
-        record_id: &RecordId,
-        digest: &AnyHash,
-    ) -> Result<PathBuf, ClientError> {
+    async fn download_content(&self, digest: &AnyHash) -> Result<PathBuf, ClientError> {
         match self.content.content_location(digest) {
             Some(path) => {
                 tracing::info!("content for digest `{digest}` already exists in storage");
@@ -569,7 +719,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
             None => {
                 self.content
                     .store_content(
-                        Box::pin(self.api.download_content(log_id, record_id, digest).await?),
+                        Box::pin(self.api.download_content(digest).await?),
                         Some(digest),
                     )
                     .await?;
@@ -669,6 +819,24 @@ pub enum ClientError {
     #[error("no default registry server URL is configured")]
     NoDefaultUrl,
 
+    /// Checkpoint signature failed verification
+    #[error("invalid checkpoint key ID `{key_id}`")]
+    InvalidCheckpointKeyId {
+        /// The signature key ID.
+        key_id: signing::KeyID,
+    },
+
+    /// Checkpoint signature failed verification
+    #[error("invalid checkpoint signature")]
+    InvalidCheckpointSignature,
+
+    /// Federated checkpoint signature failed verification
+    #[error("invalid checkpoint signature for federated registry `{registry}`")]
+    InvalidFederatedCheckpointSignature {
+        /// The federated registry ID provided in the record.
+        registry: FederatedRegistryId,
+    },
+
     /// The operator failed validation.
     #[error("operator failed validation: {inner}")]
     OperatorValidationFailed {
@@ -717,6 +885,28 @@ pub enum ClientError {
         id: PackageId,
     },
 
+    /// The package federated registry does not match previous.
+    #[error(
+        "package `{id}` has federated registry `{found:?}` different than expected `{expected:?}`"
+    )]
+    PackageFederatedRegistryMismatch {
+        /// The identifier of the package that failed validation.
+        id: PackageId,
+        /// The federated registry ID provided in the record.
+        found: Option<FederatedRegistryId>,
+        /// The expected federated registry ID.
+        expected: Option<FederatedRegistryId>,
+    },
+
+    /// The federated registry checkpoint is missing.
+    #[error("package `{id}` is missing the federated registry `{registry}` checkpoint`")]
+    PackageFederatedRegistryCheckpointMissing {
+        /// The identifier of the package that failed validation.
+        id: PackageId,
+        /// The federated registry ID provided in the record.
+        registry: FederatedRegistryId,
+    },
+
     /// The package failed validation.
     #[error("package `{id}` failed validation: {inner}")]
     PackageValidationFailed {
@@ -750,6 +940,10 @@ pub enum ClientError {
         /// The reason it was rejected.
         reason: String,
     },
+
+    /// The server did not provide operator records.
+    #[error("the server did not provide any operator records")]
+    NoOperatorRecords,
 
     /// The package is still missing content.
     #[error("the package is still missing content after all content was uploaded")]

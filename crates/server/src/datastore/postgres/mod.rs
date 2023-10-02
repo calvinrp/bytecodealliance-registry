@@ -85,6 +85,8 @@ async fn get_records<R: Decode>(
             |(record_id, c, index)| match ProtoEnvelope::from_protobuf(&c) {
                 Ok(envelope) => Ok(PublishedProtoEnvelope {
                     envelope,
+                    federated: None,
+                    federated_log_id: None,
                     registry_index: index.unwrap() as RegistryIndex,
                 }),
                 Err(e) => Err(DataStoreError::InvalidRecordContents {
@@ -450,6 +452,38 @@ impl DataStore for PostgresDataStore {
     }
 
     // Note: order of the entries is expected to match to the corresponding returned log leafs.
+    async fn get_log_leafs_starting_with_registry_index(
+        &self,
+        starting_index: RegistryIndex,
+        limit: usize,
+    ) -> Result<Vec<(RegistryIndex, LogLeaf)>, DataStoreError> {
+        let mut conn = self.pool.get().await?;
+
+        Ok(schema::records::table
+            .inner_join(schema::logs::table)
+            .select((
+                schema::records::registry_log_index,
+                schema::logs::log_id,
+                schema::records::record_id,
+            ))
+            .filter(schema::records::registry_log_index.gt(starting_index as i64))
+            .order(schema::records::registry_log_index.asc())
+            .limit(limit as i64)
+            .load::<(Option<i64>, ParsedText<AnyHash>, ParsedText<AnyHash>)>(&mut conn)
+            .await?
+            .into_iter()
+            .map(|(registry_index, log_id, record_id)| {
+                (
+                    registry_index.unwrap() as RegistryIndex,
+                    LogLeaf {
+                        log_id: log_id.0.into(),
+                        record_id: record_id.0.into(),
+                    },
+                )
+            })
+            .collect::<Vec<(RegistryIndex, LogLeaf)>>())
+    }
+
     async fn get_log_leafs_with_registry_index(
         &self,
         entries: &[RegistryIndex],

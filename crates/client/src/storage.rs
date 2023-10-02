@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::Stream;
 use serde::{Deserialize, Serialize};
-use std::{path::PathBuf, pin::Pin, time::SystemTime};
+use std::{collections::HashMap, path::PathBuf, pin::Pin, time::SystemTime};
 use warg_crypto::{
     hash::{AnyHash, HashAlgorithm},
     signing::{self, KeyID, PublicKey},
@@ -13,7 +13,10 @@ use warg_crypto::{
 use warg_protocol::{
     operator,
     package::{self, PackageRecord, Permission, PACKAGE_RECORD_VERSION},
-    registry::{Checkpoint, PackageId, RecordId, RegistryIndex, TimestampedCheckpoint},
+    registry::{
+        Checkpoint, FederatedRegistryId, LogId, PackageId, RecordId, RegistryIndex,
+        TimestampedCheckpoint,
+    },
     ProtoEnvelope, SerdeEnvelope, Version,
 };
 
@@ -30,13 +33,10 @@ pub use fs::*;
 #[async_trait]
 pub trait RegistryStorage: Send + Sync {
     /// Loads most recent checkpoint
-    async fn load_checkpoint(&self) -> Result<Option<SerdeEnvelope<TimestampedCheckpoint>>>;
+    async fn load_checkpoint(&self) -> Result<Option<CheckpointInfo>>;
 
     /// Stores most recent checkpoint
-    async fn store_checkpoint(
-        &self,
-        ts_checkpoint: &SerdeEnvelope<TimestampedCheckpoint>,
-    ) -> Result<()>;
+    async fn store_checkpoint(&self, checkpoint_info: &CheckpointInfo) -> Result<()>;
 
     /// Loads the operator information from the storage.
     ///
@@ -102,6 +102,18 @@ pub trait ContentStorage: Send + Sync {
     ) -> Result<AnyHash>;
 }
 
+/// Represents information about a checkpoint and federated checkpoints.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckpointInfo {
+    /// The last known checkpoint
+    #[serde(flatten)]
+    pub checkpoint: SerdeEnvelope<TimestampedCheckpoint>,
+    /// If a federated package, the last known federated checkpoint
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub federated_checkpoints: HashMap<FederatedRegistryId, SerdeEnvelope<TimestampedCheckpoint>>,
+}
+
 /// Represents information about a registry operator.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -129,6 +141,15 @@ pub struct PackageInfo {
     /// The current package log state
     #[serde(default)]
     pub state: package::LogState,
+    /// If a federated package, the last known federated checkpoint
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub federated_checkpoint: Option<Checkpoint>,
+    /// If a federated package, the federated registry ID
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub federated_registry: Option<FederatedRegistryId>,
+    /// If a federated package, the federated registry LogId
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub federated_registry_log_id: Option<LogId>,
     /// The registry log index of the most recent record
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub head_registry_index: Option<RegistryIndex>,
@@ -144,6 +165,9 @@ impl PackageInfo {
             id: id.into(),
             checkpoint: None,
             state: package::LogState::default(),
+            federated_checkpoint: None,
+            federated_registry: None,
+            federated_registry_log_id: None,
             head_registry_index: None,
             head_fetch_token: None,
         }

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 
 info:
-  version: 1.0.0
+  version: 0.2.0
   title: Warg Registry API
   description: |
     [warg](https://warg.io/) is an open source protocol for WebAssembly component registries.
@@ -23,6 +23,8 @@ tags:
     description: API for fetching checkpoints and logs from the registry.
   - name: package
     description: API for managing package logs in the registry.
+  - name: content
+    description: API for requesting content digests in the registry.
   - name: proof
     description: API for proving the integrity of the registry.
 
@@ -31,6 +33,35 @@ servers:
     description: Local development server
 
 paths:
+  /fetch/ledger/{startingIndex}:
+    get:
+      summary: Fetch registry ledger
+      operationId: fetchLedger
+      security: []
+      tags:
+        - fetch
+      description: |
+        Fetch registry ledger logId's and recordId's.
+      parameters:
+        - name: startingIndex
+          in: path
+          description: The starting registry index.
+          required: true
+          schema:
+            $ref: "#/components/schemas/RegistryIndex"
+      responses:
+        "200":
+          description: The ledger records batch is returned.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/LedgerRecords"
+        default:
+          description: An error occurred when processing the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /fetch/logs:
     post:
       summary: Fetch registry logs
@@ -40,10 +71,6 @@ paths:
         - fetch
       description: |
         Fetch the operator and packages logs from the registry.
-
-        TODO: document operator record format.
-
-        TODO: document package record format.
       requestBody:
         required: true
         content:
@@ -94,7 +121,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /package/{logId}/record:
     post:
-      summary: Publish a new record to a package log.
+      summary: Publish package record.
       operationId: publishPackageRecord
       security: []
       tags:
@@ -105,8 +132,6 @@ paths:
         Publishing package records is an asynchronous operation.
 
         The record must be signed by a key that is authorized to modify the package log.
-
-        TODO: document package record format.
       parameters:
         - name: logId
           in: path
@@ -150,7 +175,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /package/{logId}/record/{recordId}:
     get:
-      summary: Get a package record.
+      summary: Get package record status.
       operationId: getPackageRecord
       security: []
       tags:
@@ -163,8 +188,6 @@ paths:
           * `processing`: The package record is being processed.
           * `rejected`: The package record was rejected.
           * `published`: The package record was published to the log.
-
-        TODO: document package record format.
       parameters:
         - name: logId
           in: path
@@ -216,54 +239,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  /package/{logId}/record/{recordId}/content/{digest}:
-    post:
-      summary: Post content for a package record.
-      operationId: postPackageRecordContent
+  /content/{digest}:
+    get:
+      summary: Get content sources.
+      operationId: getContentDigest
       security: []
       tags:
-        - package
+        - content
       description: |
-        Posts package record content directly to the registry.
-
-        The package record must be in the `sourcing` state and the digest of the uploaded
-        content must match the digest parameter.
+        Gets a content sources for the digest from the registry.
       parameters:
-        - name: logId
-          in: path
-          description: The package log identifier.
-          required: true
-          schema:
-            "$ref": "#/components/schemas/AnyHash"
-        - name: recordId
-          in: path
-          description: The record identifier.
-          required: true
-          schema:
-            "$ref": "#/components/schemas/AnyHash"
         - name: digest
           in: path
-          description: The digest of the content being uploaded.
+          description: The content digest.
           required: true
           schema:
             "$ref": "#/components/schemas/AnyHash"
-      requestBody:
-        content:
-          application/octet-stream:
-            schema:
-              type: string
-              format: binary
-              maxLength: 1073741824 # 1 GiB limit
       responses:
-        "201":
-          description: The content was successfully uploaded.
-          headers:
-            Location:
-              description: The URL for accessing the uploaded content.
+        "200":
+          description: The content digest sources.
+          content:
+            application/json:
               schema:
-                type: string
-                format: uri
-                example: https://example.com/content/sha256:b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c
+                "$ref": "#/components/schemas/ContentDigestSources"
         "404":
           description: A requested entity was not found.
           content:
@@ -283,30 +281,12 @@ paths:
                   type:
                     type: string
                     description: The type of entity that was not found.
-                    enum: [log, record]
-                    example: log
+                    enum: [contentDigest]
+                    example: contentDigest
                   id:
                     "$ref": "#/components/schemas/AnyHash"
                     description: |
                       The identifier of the entity that was not found.
-        "405":
-          description: The package record is not in the `sourcing` state.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              example:
-                status: 405
-                message: the package record is not in the `sourcing` state
-        "422":
-          description: The content was rejected by server policy.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-              example:
-                status: 422
-                message: the content is not valid WebAssembly
         default:
           description: An error occurred when processing the request.
           content:
@@ -464,6 +444,10 @@ components:
       description: Represents a supported hash.
       example: sha256:b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c
       pattern: ^[a-z0-9-]+:[a-f0-9]+$
+    RegistryIndex:
+      type: integer
+      description: Represents a registry index.
+      example: 11
     FetchLogsRequest:
       type: object
       description: A request to fetch logs from the registry.
@@ -549,6 +533,11 @@ components:
                 signature: "ecdsa-p256:MEUCIQCzWZBW6ux9LecP66Y+hjmLZTP/hZVz7puzlPTXcRT2wwIgQZO7nxP0nugtw18MwHZ26ROFWcJmgCtKOguK031Y1D0="
                 registryIndex: 732
                 fetchToken: "sha256:ygdb4e8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae00a8y"
+        federatedCheckpoints:
+          type: object
+          description: The map of federation registry identifiers to signed timestamped checkpoints.
+          additionalProperties:
+            $ref: "#/components/schemas/SignedCheckpoint"
     PublishPackageRecordRequest:
       type: object
       description: A request to publish a record to a package log.
@@ -579,9 +568,9 @@ components:
       allOf:
         - type: object
           required:
-            - id
+            - recordId
           properties:
-            id:
+            recordId:
               "$ref": "#/components/schemas/AnyHash"
               description: The record identifier.
         - oneOf:
@@ -596,9 +585,9 @@ components:
               processing: "#/components/schemas/ProcessingRecord"
               rejected: "#/components/schemas/RejectedRecord"
               published: "#/components/schemas/PublishedRecord"
-    ProveConsistencyRequest:
+    ProveConsistencyRequestParams:
       type: object
-      description: A request to prove the consistency of the registry.
+      description: Consistency proof request params.
       additionalProperties: false
       required:
         - from
@@ -614,6 +603,25 @@ components:
           description: The ending log length.
           minimum: 1
           example: 42
+    ProveConsistencyRequest:
+      type: object
+      description: A request to prove the consistency of the registry.
+      additionalProperties: false
+      allOf:
+        - $ref: "#/components/schemas/ProveConsistencyRequestParams"
+        - type: object
+          additionalProperties: false
+          properties:
+            federated:
+              type: object
+              description: For federated packages, the params for consistency proof request.
+              additionalProperties:
+                type: object
+                $ref: "#/components/schemas/ProveConsistencyRequestParams"
+              example:
+                registry.domain.com:
+                  from: 45
+                  to: 63
     ProveConsistencyResponse:
       type: object
       description: A response containing the consistency proof bundle.
@@ -626,9 +634,19 @@ components:
           description: The consistency proof bundle.
           format: byte
           example: "ZXhhbXBsZQ=="
-    ProveInclusionRequest:
+        federated:
+          type: object
+          description: For federated packages, the consistency proof bundles.
+          additionalProperties:
+            type: string
+            description: The consistency proof bundle.
+            format: byte
+            example: "ZXhhbXBsZQ=="
+          example:
+            registry.domain.com: "ZXhhbXBsZQ=="
+    ProveInclusionRequestParams:
       type: object
-      description: A request to prove the inclusion of log leafs in a checkpoint.
+      description: Inclusion proof request params.
       additionalProperties: false
       required:
         - logLength
@@ -643,9 +661,28 @@ components:
           description: The log leaf registry log index to prove the inclusion for.
           items:
             type: integer
-    ProveInclusionResponse:
+    ProveInclusionRequest:
       type: object
-      description: A response containing the inclusion proof bundle.
+      description: A request to prove the inclusion of log leafs in a checkpoint.
+      additionalProperties: false
+      allOf:
+        - $ref: "#/components/schemas/ProveInclusionRequestParams"
+        - type: object
+          additionalProperties: false
+          properties:
+            federated:
+              type: object
+              description: For federated packages, the params for inclusion proof request.
+              additionalProperties:
+                type: object
+                $ref: "#/components/schemas/ProveInclusionRequestParams"
+              example:
+                registry.domain.com:
+                  logLength: 103
+                  leafs: [10, 54]
+    ProveInclusionProofBundles:
+      type: object
+      description: The inclusion proof bundle.
       additionalProperties: false
       required:
         - log
@@ -661,6 +698,25 @@ components:
           description: The map inclusion proof bundle.
           format: byte
           example: "ZXhhbXBsZQ=="
+    ProveInclusionResponse:
+      type: object
+      description: A response containing the inclusion proof bundle.
+      additionalProperties: false
+      allOf:
+        - $ref: "#/components/schemas/ProveInclusionProofBundles"
+        - type: object
+          additionalProperties: false
+          properties:
+            federated:
+              type: object
+              description: For federated packages, the inclusion proof bundles.
+              additionalProperties:
+                type: object
+                $ref: "#/components/schemas/ProveInclusionProofBundles"
+              example:
+                registry.domain.com:
+                  log: "ZXhhbXBsZQ=="
+                  map: "ZXhhbXBsZQ=="
     SourcingRecord:
       type: object
       description: The package record is sourcing content.
@@ -717,15 +773,19 @@ components:
           description: The state of the package record.
           enum: [published]
           example: published
+        federated:
+          type: string
+          description: If a federated package, the federated registry ID.
+          example: "registry.example.com"
+        federatedLogId:
+          $ref: "#/components/schemas/AnyHash"
+          description: If a federated package, the federated registry logId.
         registryIndex:
           type: integer
           description: The index of the record in the registry log.
         record:
           "$ref": "#/components/schemas/EnvelopeBody"
           description: The package record.
-        contentSources:
-          "$ref": "#/components/schemas/ContentSourceMap"
-          description: The content sources for the package record.
     Checkpoint:
       type: object
       description: |
@@ -813,6 +873,13 @@ components:
             - registryIndex
             - fetchToken
           properties:
+            federated:
+              type: string
+              description: If a federated package, the federated registry ID.
+              example: "registry.example.com"
+            federatedLogId:
+              $ref: "#/components/schemas/AnyHash"
+              description: If a federated package, the federated registry logId.
             registryIndex:
               type: integer
               description: The index of the published record in the registry log.
@@ -847,7 +914,8 @@ components:
       example:
         ? "sha256:7d865e959b2466918c9863afca942d0fb89d7c9ac0c99bafc3749504ded9773"
         : upload:
-            - type: httpPost
+            - type: http
+              method: POST
               url: https://example.com/7d865e959b2466918c9863afca942d0fb89d7c9ac0c99bafc3749504ded9773
     MissingContent:
       description: Information about missing content.
@@ -857,25 +925,51 @@ components:
           type: array 
           items:
             oneOf:
-              - "$ref": "#/components/schemas/HttpPostUpload"
+              - "$ref": "#/components/schemas/HttpUpload"
             discriminator:
               propertyName: type
               mapping:
-                httpPost: "#/components/schemas/HttpPostUpload"
-    HttpPostUpload:
+                http: "#/components/schemas/HttpUpload"
+    HttpUpload:
       type: object
-      description: A HTTP POST upload endpoint.
+      description: A HTTP upload endpoint.
+      required:
+        - type
+        - method
+        - url
       properties:
         type:
           type: string
           description: The type of upload endpoint.
-          enum: [httpPost]
-          example: httpPost
+          enum: [http]
+          example: http
+        method:
+          type: string
+          description: The HTTP method for the upload request. Uppercase is required.
+          enum: [POST, PUT]
+          example: POST
         url:
           type: string
           description: The URL of the upload endpoint, which may be relative to the API base URL.
           example: https://example.com/contents.wasm
           format: uri
+        headers:
+          type: object
+          description: The HTTP headers for upload request.
+          additionalProperties:
+            type: string
+            description: The HTTP header value.
+          example:
+            authorization: Bearer asdf
+    ContentDigestSources:
+      type: object
+      description: Content digest sources for download.
+      required:
+        - contentSources
+      properties:
+        contentSources:
+          "$ref": "#/components/schemas/ContentSourceMap"
+          description: The content sources for the content digest.
     ContentSourceMap:
       type: object
       description: The map of content digest to sources.
@@ -902,6 +996,9 @@ components:
     HttpSource:
       type: object
       description: A known HTTP content source.
+      required:
+        - type
+        - url
       properties:
         type:
           type: string
@@ -913,6 +1010,21 @@ components:
           description: The URL of the content.
           example: https://example.com/contents.wasm
           format: uri
+        headers:
+          type: object
+          description: The HTTP headers for upload request.
+          additionalProperties:
+            type: string
+            description: The HTTP header value.
+          example:
+            authorization: Bearer asdf
+        supportsRangeHeader:
+          type: boolean
+          description: Flag indicating if the server URL supports Range header.
+        size:
+          type: integer
+          description: Content size in bytes.
+          example: 1024
     PackageNotIncludedError:
       type: object
       additionalProperties: false
@@ -1020,3 +1132,30 @@ components:
             type: integer
             description: The log length that was not found.
             example: 1001
+    LedgerRecords:
+      type: object
+      description: A response containing the requested ledger records.
+      additionalProperties: false
+      properties:
+        more:
+          type: boolean
+          description: |
+            Whether there may be more records available.
+
+            This occurs when the number of records returned for a log reaches the requested limit.
+
+            If `true`, the client should make another request with the last know registry index as the startingIndex path parameter.
+          example: false
+        ledger:
+          type: array
+          description: The array of ledger (registryIndex, logId, recordId) records.
+          items:
+            type: array
+            minItems: 3
+            maxItems: 3
+            items:
+              oneOf:
+                - type: integer
+                - "$ref": "#/components/schemas/AnyHash"
+            example:
+              [3, "sha256:b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c", "sha256:7d865e959b2466918c9863afca942d0fb89d7c9ac0c99bafc3749504ded97730"]

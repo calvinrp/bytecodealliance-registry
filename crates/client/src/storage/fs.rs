@@ -1,6 +1,8 @@
 //! A module for file system client storage.
 
-use super::{ContentStorage, OperatorInfo, PackageInfo, PublishInfo, RegistryStorage};
+use super::{
+    CheckpointInfo, ContentStorage, OperatorInfo, PackageInfo, PublishInfo, RegistryStorage,
+};
 use crate::lock::FileLock;
 use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
@@ -18,10 +20,7 @@ use tokio::io::{AsyncWriteExt, BufReader, BufWriter};
 use tokio_util::io::ReaderStream;
 use walkdir::WalkDir;
 use warg_crypto::hash::{AnyHash, Digest, Hash, Sha256};
-use warg_protocol::{
-    registry::{LogId, PackageId, TimestampedCheckpoint},
-    SerdeEnvelope,
-};
+use warg_protocol::registry::{LogId, PackageId};
 
 const TEMP_DIRECTORY: &str = "temp";
 const PENDING_PUBLISH_FILE: &str = "pending-publish.json";
@@ -85,15 +84,12 @@ impl FileSystemRegistryStorage {
 
 #[async_trait]
 impl RegistryStorage for FileSystemRegistryStorage {
-    async fn load_checkpoint(&self) -> Result<Option<SerdeEnvelope<TimestampedCheckpoint>>> {
+    async fn load_checkpoint(&self) -> Result<Option<CheckpointInfo>> {
         load(&self.base_dir.join("checkpoint")).await
     }
 
-    async fn store_checkpoint(
-        &self,
-        ts_checkpoint: &SerdeEnvelope<TimestampedCheckpoint>,
-    ) -> Result<()> {
-        store(&self.base_dir.join("checkpoint"), ts_checkpoint).await
+    async fn store_checkpoint(&self, checkpoint_info: &CheckpointInfo) -> Result<()> {
+        store(&self.base_dir.join("checkpoint"), checkpoint_info).await
     }
 
     async fn load_packages(&self) -> Result<Vec<PackageInfo>> {

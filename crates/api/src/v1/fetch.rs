@@ -6,9 +6,23 @@ use std::{borrow::Cow, collections::HashMap};
 use thiserror::Error;
 use warg_crypto::hash::AnyHash;
 use warg_protocol::{
-    registry::{LogId, RegistryLen},
-    PublishedProtoEnvelopeBody,
+    registry::{
+        FederatedRegistryId, LogId, RecordId, RegistryIndex, RegistryLen, TimestampedCheckpoint,
+    },
+    PublishedProtoEnvelopeBody, SerdeEnvelope,
 };
+
+/// Represents a fetch ledger response.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchLedgerResponse {
+    /// Whether there are more records to fetch.
+    #[serde(default)]
+    pub more: bool,
+    /// The ledger records.
+    #[serde(default)]
+    pub ledger: Vec<(RegistryIndex, LogId, RecordId)>,
+}
 
 /// Wraps the PublishedProtoEnvelopeBody with a fetch token.
 #[derive(Debug, Serialize, Deserialize)]
@@ -51,6 +65,9 @@ pub struct FetchLogsResponse {
     /// The package records appended since last known package record ids.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub packages: HashMap<LogId, Vec<PublishedRecord>>,
+    /// If federated packages are present in the response, provide the federated registry checkpoints.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub federated_checkpoints: HashMap<FederatedRegistryId, SerdeEnvelope<TimestampedCheckpoint>>,
 }
 
 /// Represents a fetch API error.

@@ -3,15 +3,17 @@
 use anyhow::{anyhow, Result};
 use bytes::Bytes;
 use futures_util::{Stream, TryStreamExt};
-use reqwest::{Body, IntoUrl, Response, StatusCode};
+use reqwest::{
+    header::{HeaderMap, HeaderName, HeaderValue},
+    Body, IntoUrl, Method, Response, StatusCode,
+};
 use serde::de::DeserializeOwned;
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::HashMap};
 use thiserror::Error;
 use warg_api::v1::{
+    content::{ContentDigestSources, ContentError},
     fetch::{FetchError, FetchLogsRequest, FetchLogsResponse},
-    package::{
-        ContentSource, PackageError, PackageRecord, PackageRecordState, PublishRecordRequest,
-    },
+    package::{ContentSource, PackageError, PackageRecord, PublishRecordRequest},
     paths,
     proof::{
         ConsistencyRequest, ConsistencyResponse, InclusionRequest, InclusionResponse, ProofError,
@@ -19,7 +21,9 @@ use warg_api::v1::{
 };
 use warg_crypto::hash::{AnyHash, HashError, Sha256};
 use warg_protocol::{
-    registry::{Checkpoint, LogId, LogLeaf, MapLeaf, RecordId, TimestampedCheckpoint},
+    registry::{
+        Checkpoint, FederatedRegistryId, LogId, LogLeaf, MapLeaf, RecordId, TimestampedCheckpoint,
+    },
     SerdeEnvelope,
 };
 use warg_transparency::{
@@ -38,6 +42,9 @@ pub enum ClientError {
     /// An error was returned from the package API.
     #[error(transparent)]
     Package(#[from] PackageError),
+    /// An error was returned from the content API.
+    #[error(transparent)]
+    Content(#[from] ContentError),
     /// An error was returned from the proof API.
     #[error(transparent)]
     Proof(#[from] ProofError),
@@ -54,14 +61,19 @@ pub enum ClientError {
     },
     /// The provided root for a consistency proof was incorrect.
     #[error(
-        "the client failed to prove consistency: found root `{found}` but was given root `{root}`"
+        "the client failed to prove consistency (federated: {federated_registry:?}): found root `{found}` but was given root `{root}`"
     )]
     IncorrectConsistencyProof {
+        /// If federated, the federated registry ID
+        federated_registry: Option<FederatedRegistryId>,
         /// The provided root.
         root: AnyHash,
         /// The found root.
         found: AnyHash,
     },
+    /// The proof response was missing a proof bundle for a federated registry.
+    #[error("the server did not return proof bundle for federated registry `{0}`")]
+    FederatedMissingProofBundle(FederatedRegistryId),
     /// A hash returned from the server was incorrect.
     #[error("the server returned an invalid hash: {0}")]
     Hash(#[from] HashError),
@@ -80,6 +92,12 @@ pub enum ClientError {
     /// All sources for the given content digest returned an error response.
     #[error("all sources for content digest `{0}` returned an error response")]
     AllSourcesFailed(AnyHash),
+    /// Invalid upload HTTP method.
+    #[error("server returned an invalid HTTP method `{0}`")]
+    InvalidHttpMethod(String),
+    /// Invalid upload HTTP method.
+    #[error("server returned an invalid HTTP header `{0}: {1}`")]
+    InvalidHttpHeader(String, String),
     /// An other error occurred during the requested operation.
     #[error(transparent)]
     Other(#[from] anyhow::Error),
@@ -203,35 +221,51 @@ impl Client {
         into_result::<_, PackageError>(response).await
     }
 
+    /// Gets a content digest from the registry.
+    pub async fn request_content_digest(
+        &self,
+        digest: &AnyHash,
+    ) -> Result<ContentDigestSources, ClientError> {
+        let url = self.url.join(&paths::request_content_digest(digest));
+        tracing::debug!("getting content digest `{digest}` at `{url}`");
+
+        let response = reqwest::get(url).await?;
+        into_result::<_, ContentError>(response).await
+    }
+
     /// Downloads the content associated with a given record.
     pub async fn download_content(
         &self,
-        log_id: &LogId,
-        record_id: &RecordId,
         digest: &AnyHash,
     ) -> Result<impl Stream<Item = Result<Bytes>>, ClientError> {
-        tracing::debug!("fetching record `{record_id}` for package `{log_id}`");
+        tracing::debug!("requesting content download for digest `{digest}`");
 
-        let record = self.get_package_record(log_id, record_id).await?;
-        let sources = match &record.state {
-            PackageRecordState::Published {
-                content_sources, ..
-            } => content_sources
-                .get(digest)
-                .ok_or_else(|| ClientError::NoSourceForContent(digest.clone()))?,
-            _ => {
-                return Err(ClientError::RecordNotPublished(record_id.clone()));
-            }
-        };
+        let ContentDigestSources { content_sources } = self.request_content_digest(digest).await?;
+
+        // TODO: download other dependent content as well
+
+        let sources = content_sources
+            .get(digest)
+            .ok_or(ClientError::AllSourcesFailed(digest.clone()))?;
 
         for source in sources {
-            let url = match source {
-                ContentSource::Http { url } => url,
-            };
+            let ContentSource::Http { url, headers, .. } = source;
+            let headers = headers
+                .iter()
+                .map(|(k, v)| {
+                    let name = HeaderName::try_from(k).map_err(|_| {
+                        ClientError::InvalidHttpHeader(k.to_string(), v.to_string())
+                    })?;
+                    let value = HeaderValue::try_from(k).map_err(|_| {
+                        ClientError::InvalidHttpHeader(k.to_string(), v.to_string())
+                    })?;
+                    Ok((name, value))
+                })
+                .collect::<Result<HeaderMap, ClientError>>()?;
 
             tracing::debug!("downloading content `{digest}` from `{url}`");
 
-            let response = reqwest::get(url).await?;
+            let response = self.client.get(url).headers(headers).send().await?;
             if !response.status().is_success() {
                 tracing::debug!(
                     "failed to download content `{digest}` from `{url}`: {status}",
@@ -252,6 +286,7 @@ impl Client {
         request: InclusionRequest,
         checkpoint: &Checkpoint,
         leafs: &[LogLeaf],
+        federated_checkpoint_leafs: HashMap<FederatedRegistryId, (Checkpoint, Vec<LogLeaf>)>,
     ) -> Result<(), ClientError> {
         let url = self.url.join(paths::prove_inclusion());
         tracing::debug!("proving checkpoint inclusion at `{url}`");
@@ -261,7 +296,66 @@ impl Client {
         )
         .await?;
 
-        Self::validate_inclusion_response(response, checkpoint, leafs)
+        let prove_inclusion = |log_proof_bundle: LogProofBundle<Sha256, LogLeaf>,
+                               map_proof_bundle: MapProofBundle<Sha256, LogId, MapLeaf>,
+                               checkpoint: &Checkpoint,
+                               leafs: &[LogLeaf]| {
+            let (log_data, _, log_inclusions) = log_proof_bundle.unbundle();
+            for (leaf, proof) in leafs.iter().zip(log_inclusions.iter()) {
+                let found = proof.evaluate_value(&log_data, leaf)?;
+                let root = checkpoint.log_root.clone().try_into()?;
+                if found != root {
+                    return Err(ClientError::Proof(ProofError::IncorrectProof {
+                        root: checkpoint.log_root.clone(),
+                        found: found.into(),
+                    }));
+                }
+            }
+
+            let map_inclusions = map_proof_bundle.unbundle();
+            for (leaf, proof) in leafs.iter().zip(map_inclusions.iter()) {
+                let found = proof.evaluate(
+                    &leaf.log_id,
+                    &MapLeaf {
+                        record_id: leaf.record_id.clone(),
+                    },
+                );
+                let root = checkpoint.map_root.clone().try_into()?;
+                if found != root {
+                    return Err(ClientError::Proof(ProofError::IncorrectProof {
+                        root: checkpoint.map_root.clone(),
+                        found: found.into(),
+                    }));
+                }
+            }
+
+            Ok(())
+        };
+
+        // prove inclusion for this registry
+        prove_inclusion(
+            LogProofBundle::decode(response.proofs.log.as_slice())?,
+            MapProofBundle::decode(response.proofs.map.as_slice())?,
+            checkpoint,
+            leafs,
+        )?;
+
+        // prove inclusion for federated
+        for federated_registry in request.federated.into_keys() {
+            let proofs = response.federated.get(&federated_registry).ok_or_else(|| {
+                ClientError::FederatedMissingProofBundle(federated_registry.clone())
+            })?;
+            let (checkpoint, leafs) = federated_checkpoint_leafs.get(&federated_registry).unwrap();
+
+            prove_inclusion(
+                LogProofBundle::decode(proofs.log.as_slice())?,
+                MapProofBundle::decode(proofs.map.as_slice())?,
+                checkpoint,
+                leafs,
+            )?;
+        }
+
+        Ok(())
     }
 
     /// Proves consistency between two log roots.
@@ -270,6 +364,7 @@ impl Client {
         request: ConsistencyRequest,
         from_log_root: Cow<'_, AnyHash>,
         to_log_root: Cow<'_, AnyHash>,
+        federated_log_roots: HashMap<FederatedRegistryId, (AnyHash, AnyHash)>,
     ) -> Result<(), ClientError> {
         let url = self.url.join(paths::prove_consistency());
         let response = into_result::<ConsistencyResponse, ProofError>(
@@ -277,38 +372,75 @@ impl Client {
         )
         .await?;
 
-        let proof = ProofBundle::<Sha256, LogLeaf>::decode(&response.proof).unwrap();
-        let (log_data, consistencies, inclusions) = proof.unbundle();
-        if !inclusions.is_empty() {
-            return Err(ClientError::Proof(ProofError::BundleFailure(
-                "expected no inclusion proofs".into(),
-            )));
-        }
+        let prove_consistency = |federated_registry: Option<FederatedRegistryId>,
+                                 proof: ProofBundle<Sha256, LogLeaf>,
+                                 from_log_root: Cow<'_, AnyHash>,
+                                 to_log_root: Cow<'_, AnyHash>| {
+            let (log_data, consistencies, inclusions) = proof.unbundle();
+            if !inclusions.is_empty() {
+                return Err(ClientError::Proof(ProofError::BundleFailure(
+                    "expected no inclusion proofs".into(),
+                )));
+            }
 
-        if consistencies.len() != 1 {
-            return Err(ClientError::Proof(ProofError::BundleFailure(
-                "expected exactly one consistency proof".into(),
-            )));
-        }
+            if consistencies.len() != 1 {
+                return Err(ClientError::Proof(ProofError::BundleFailure(
+                    "expected exactly one consistency proof".into(),
+                )));
+            }
 
-        let (from, to) = consistencies
-            .first()
-            .unwrap()
-            .evaluate(&log_data)
-            .map(|(from, to)| (AnyHash::from(from), AnyHash::from(to)))?;
+            let (from, to) = consistencies
+                .first()
+                .unwrap()
+                .evaluate(&log_data)
+                .map(|(from, to)| (AnyHash::from(from), AnyHash::from(to)))?;
 
-        if from_log_root.as_ref() != &from {
-            return Err(ClientError::IncorrectConsistencyProof {
-                root: from_log_root.into_owned(),
-                found: from,
-            });
-        }
+            if from_log_root.as_ref() != &from {
+                return Err(ClientError::IncorrectConsistencyProof {
+                    federated_registry,
+                    root: from_log_root.into_owned(),
+                    found: from,
+                });
+            }
 
-        if to_log_root.as_ref() != &to {
-            return Err(ClientError::IncorrectConsistencyProof {
-                root: to_log_root.into_owned(),
-                found: to,
-            });
+            if to_log_root.as_ref() != &to {
+                return Err(ClientError::IncorrectConsistencyProof {
+                    federated_registry,
+                    root: to_log_root.into_owned(),
+                    found: to,
+                });
+            }
+
+            Ok(())
+        };
+
+        // prove consistency for this registry
+        prove_consistency(
+            None,
+            ProofBundle::<Sha256, LogLeaf>::decode(&response.proof).unwrap(),
+            from_log_root,
+            to_log_root,
+        )?;
+
+        // prove consistency for federated
+        for federated_registry in request.federated.into_keys() {
+            // iterate over request federated to check we get all requested proof bundles
+            let proof = ProofBundle::<Sha256, LogLeaf>::decode(
+                response.federated.get(&federated_registry).ok_or_else(|| {
+                    ClientError::FederatedMissingProofBundle(federated_registry.clone())
+                })?,
+            )
+            .unwrap();
+
+            let (from_log_root, to_log_root) =
+                federated_log_roots.get(&federated_registry).unwrap();
+
+            prove_consistency(
+                Some(federated_registry),
+                proof,
+                Cow::Borrowed(from_log_root),
+                Cow::Borrowed(to_log_root),
+            )?;
         }
 
         Ok(())
@@ -317,72 +449,44 @@ impl Client {
     /// Uploads package content to the registry.
     pub async fn upload_content(
         &self,
+        method: &str,
         url: &str,
+        headers: &HashMap<String, String>,
         content: impl Into<Body>,
-    ) -> Result<String, ClientError> {
+    ) -> Result<(), ClientError> {
         // Upload URLs may be relative to the registry URL.
         let url = self.url.join(url);
 
+        let method = match method {
+            "POST" => Method::POST,
+            "PUT" => Method::PUT,
+            method => return Err(ClientError::InvalidHttpMethod(method.to_string())),
+        };
+
+        let headers = headers
+            .iter()
+            .map(|(k, v)| {
+                let name = HeaderName::try_from(k)
+                    .map_err(|_| ClientError::InvalidHttpHeader(k.to_string(), v.to_string()))?;
+                let value = HeaderValue::try_from(k)
+                    .map_err(|_| ClientError::InvalidHttpHeader(k.to_string(), v.to_string()))?;
+                Ok((name, value))
+            })
+            .collect::<Result<HeaderMap, ClientError>>()?;
+
         tracing::debug!("uploading content to `{url}`");
 
-        let response = self.client.post(url).body(content).send().await?;
+        let response = self
+            .client
+            .request(method, url)
+            .headers(headers)
+            .body(content)
+            .send()
+            .await?;
         if !response.status().is_success() {
             return Err(ClientError::Package(
                 deserialize::<PackageError>(response).await?,
             ));
-        }
-
-        Ok(response
-            .headers()
-            .get("location")
-            .ok_or_else(|| ClientError::UnexpectedResponse {
-                status: response.status(),
-                message: "location header missing from response".into(),
-            })?
-            .to_str()
-            .map_err(|_| ClientError::UnexpectedResponse {
-                status: response.status(),
-                message: "returned location header was not UTF-8".into(),
-            })?
-            .to_string())
-    }
-
-    fn validate_inclusion_response(
-        response: InclusionResponse,
-        checkpoint: &Checkpoint,
-        leafs: &[LogLeaf],
-    ) -> Result<(), ClientError> {
-        let log_proof_bundle: LogProofBundle<Sha256, LogLeaf> =
-            LogProofBundle::decode(response.log.as_slice())?;
-        let (log_data, _, log_inclusions) = log_proof_bundle.unbundle();
-        for (leaf, proof) in leafs.iter().zip(log_inclusions.iter()) {
-            let found = proof.evaluate_value(&log_data, leaf)?;
-            let root = checkpoint.log_root.clone().try_into()?;
-            if found != root {
-                return Err(ClientError::Proof(ProofError::IncorrectProof {
-                    root: checkpoint.log_root.clone(),
-                    found: found.into(),
-                }));
-            }
-        }
-
-        let map_proof_bundle: MapProofBundle<Sha256, LogId, MapLeaf> =
-            MapProofBundle::decode(response.map.as_slice())?;
-        let map_inclusions = map_proof_bundle.unbundle();
-        for (leaf, proof) in leafs.iter().zip(map_inclusions.iter()) {
-            let found = proof.evaluate(
-                &leaf.log_id,
-                &MapLeaf {
-                    record_id: leaf.record_id.clone(),
-                },
-            );
-            let root = checkpoint.map_root.clone().try_into()?;
-            if found != root {
-                return Err(ClientError::Proof(ProofError::IncorrectProof {
-                    root: checkpoint.map_root.clone(),
-                    found: found.into(),
-                }));
-            }
         }
 
         Ok(())

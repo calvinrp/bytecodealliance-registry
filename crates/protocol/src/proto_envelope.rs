@@ -1,4 +1,4 @@
-use super::registry::RegistryIndex;
+use super::registry::{FederatedRegistryId, LogId, RegistryIndex};
 use anyhow::Error;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use prost::Message;
@@ -14,6 +14,10 @@ use warg_protobuf::protocol as protobuf;
 pub struct PublishedProtoEnvelope<Contents> {
     /// The wrapped ProtoEnvelope
     pub envelope: ProtoEnvelope<Contents>,
+    /// If it is a federated log, the registry identifier
+    pub federated: Option<FederatedRegistryId>,
+    /// If it is a federated log, the registry LogId
+    pub federated_log_id: Option<LogId>,
     /// The published registry log index for the record
     pub registry_index: RegistryIndex,
 }
@@ -181,6 +185,12 @@ pub struct PublishedProtoEnvelopeBody {
     /// The ProtoEnvelopeBody flattened
     #[serde(flatten)]
     pub envelope: ProtoEnvelopeBody,
+    /// If it is a federated log, the registry identifier
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub federated: Option<FederatedRegistryId>,
+    /// If it is a federated log, the registry LogId
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub federated_log_id: Option<LogId>,
     /// The index of the published record in the registry log
     pub registry_index: RegistryIndex,
 }
@@ -194,6 +204,8 @@ where
     fn try_from(value: PublishedProtoEnvelopeBody) -> Result<Self, Self::Error> {
         Ok(PublishedProtoEnvelope {
             envelope: ProtoEnvelope::<Content>::try_from(value.envelope)?,
+            federated: value.federated,
+            federated_log_id: value.federated_log_id,
             registry_index: value.registry_index,
         })
     }
@@ -203,6 +215,8 @@ impl<Content> From<PublishedProtoEnvelope<Content>> for PublishedProtoEnvelopeBo
     fn from(value: PublishedProtoEnvelope<Content>) -> Self {
         PublishedProtoEnvelopeBody {
             envelope: ProtoEnvelopeBody::from(value.envelope),
+            federated: value.federated,
+            federated_log_id: value.federated_log_id,
             registry_index: value.registry_index,
         }
     }
@@ -217,6 +231,8 @@ impl fmt::Debug for PublishedProtoEnvelopeBody {
             )
             .field("key_id", &self.envelope.key_id)
             .field("signature", &self.envelope.signature)
+            .field("federated", &self.federated)
+            .field("federated_log_id", &self.federated_log_id)
             .field("registry_index", &self.registry_index)
             .finish()
     }

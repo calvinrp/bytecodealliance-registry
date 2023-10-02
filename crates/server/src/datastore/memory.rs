@@ -121,6 +121,24 @@ impl DataStore for MemoryDataStore {
         Ok(Box::pin(futures::stream::empty()))
     }
 
+    async fn get_log_leafs_starting_with_registry_index(
+        &self,
+        starting_index: RegistryIndex,
+        limit: usize,
+    ) -> Result<Vec<(RegistryIndex, LogLeaf)>, DataStoreError> {
+        let state = self.0.read().await;
+
+        let mut leafs = Vec::with_capacity(limit);
+        for entry in starting_index..starting_index + limit {
+            match state.log_leafs.get(&entry) {
+                Some(log_leaf) => leafs.push((entry, log_leaf.clone())),
+                None => break,
+            }
+        }
+
+        Ok(leafs)
+    }
+
     async fn get_log_leafs_with_registry_index(
         &self,
         entries: &[RegistryIndex],
@@ -482,6 +500,8 @@ impl DataStore for MemoryDataStore {
             .take_while(|entry| entry.registry_index < registry_log_length)
             .map(|entry| PublishedProtoEnvelope {
                 envelope: entry.record_content.clone(),
+                federated: None,
+                federated_log_id: None,
                 registry_index: entry.registry_index,
             })
             .take(limit as usize)
@@ -521,6 +541,8 @@ impl DataStore for MemoryDataStore {
             .take_while(|entry| entry.registry_index < registry_log_length)
             .map(|entry| PublishedProtoEnvelope {
                 envelope: entry.record_content.clone(),
+                federated: None,
+                federated_log_id: None,
                 registry_index: entry.registry_index,
             })
             .take(limit as usize)
