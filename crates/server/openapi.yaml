@@ -500,7 +500,7 @@ components:
           example: 0
         records:
           type: array
-          description: The array of ledger [logId, recordId] records.
+          description: The array of ledger logId and recordId records.
           items:
             type: array
             minItems: 2
