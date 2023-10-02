@@ -212,7 +212,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /content/{digest}:
     get:
-      summary: Get a content digest sources.
+      summary: Get content sources.
       operationId: getContentDigest
       security: []
       tags:
