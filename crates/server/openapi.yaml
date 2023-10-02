@@ -181,7 +181,7 @@ paths:
       tags:
         - package
       description: |
-        Gets a package record from the registry.
+        Gets package record status from the registry. Only used for packages published to this registry and not federated packages.
 
         A package record is in one of the following states:
           * `sourcing`: The package record needs content sources.
