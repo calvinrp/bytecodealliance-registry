@@ -48,7 +48,7 @@ paths:
           description: The starting registry index.
           required: true
           schema:
-            type: integer
+            $ref: "#/components/schemas/RegistryIndex"
       responses:
         "200":
           description: The ledger records batch is returned.
@@ -444,6 +444,10 @@ components:
       description: Represents a supported hash.
       example: sha256:b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c
       pattern: ^[a-z0-9-]+:[a-f0-9]+$
+    RegistryIndex:
+      type: integer
+      description: Represents a registry index.
+      example: 11
     FetchLogsRequest:
       type: object
       description: A request to fetch logs from the registry.
