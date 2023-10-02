@@ -7,7 +7,7 @@ use std::{borrow::Cow, collections::HashMap};
 use thiserror::Error;
 use warg_crypto::hash::AnyHash;
 use warg_protocol::{
-    registry::{FederatedRegistryId, LogId, PackageId, RecordId, RegistryIndex},
+    registry::{LogId, PackageId, RecordId, RegistryIndex},
     ProtoEnvelopeBody,
 };
 
@@ -99,14 +99,6 @@ pub enum PackageRecordState {
     /// The package record was successfully published to the log.
     #[serde(rename_all = "camelCase")]
     Published {
-        /// The envelope of the package record.
-        record: ProtoEnvelopeBody,
-        /// If it is a federated log, the registry identifier.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        federated: Option<FederatedRegistryId>,
-        /// If it is a federated log, the registry LogId.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        federated_log_id: Option<LogId>,
         /// The published index of the record in the registry log.
         registry_index: RegistryIndex,
     },

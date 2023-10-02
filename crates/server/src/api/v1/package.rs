@@ -286,12 +286,7 @@ async fn get_record(
 
             Ok(Json(PackageRecord {
                 record_id,
-                state: PackageRecordState::Published {
-                    record: record.envelope.into(),
-                    federated: None,
-                    federated_log_id: None,
-                    registry_index,
-                },
+                state: PackageRecordState::Published { registry_index },
             }))
         }
     }
