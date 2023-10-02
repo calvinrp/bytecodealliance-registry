@@ -1,7 +1,12 @@
 //! The paths of the Warg REST API.
 
 use warg_crypto::hash::AnyHash;
-use warg_protocol::registry::{LogId, RecordId};
+use warg_protocol::registry::{LogId, RecordId, RegistryIndex};
+
+/// The path of the "fetch ledger" API.
+pub fn fetch_ledger(starting_index: RegistryIndex) -> String {
+    format!("v1/fetch/ledger/{starting_index}")
+}
 
 /// The path of the "fetch logs" API.
 pub fn fetch_logs() -> &'static str {

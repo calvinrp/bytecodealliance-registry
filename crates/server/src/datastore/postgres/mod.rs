@@ -452,6 +452,29 @@ impl DataStore for PostgresDataStore {
     }
 
     // Note: order of the entries is expected to match to the corresponding returned log leafs.
+    async fn get_log_leafs_starting_with_registry_index(
+        &self,
+        starting_index: RegistryIndex,
+        limit: usize,
+    ) -> Result<Vec<LogLeaf>, DataStoreError> {
+        let mut conn = self.pool.get().await?;
+
+        Ok(schema::records::table
+            .inner_join(schema::logs::table)
+            .select((schema::logs::log_id, schema::records::record_id))
+            .filter(schema::records::registry_log_index.gt(starting_index as i64))
+            .order(schema::records::registry_log_index.asc())
+            .limit(limit as i64)
+            .load::<(ParsedText<AnyHash>, ParsedText<AnyHash>)>(&mut conn)
+            .await?
+            .into_iter()
+            .map(|(log_id, record_id)| LogLeaf {
+                log_id: log_id.0.into(),
+                record_id: record_id.0.into(),
+            })
+            .collect::<Vec<LogLeaf>>())
+    }
+
     async fn get_log_leafs_with_registry_index(
         &self,
         entries: &[RegistryIndex],

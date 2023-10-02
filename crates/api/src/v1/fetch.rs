@@ -6,9 +6,23 @@ use std::{borrow::Cow, collections::HashMap};
 use thiserror::Error;
 use warg_crypto::hash::AnyHash;
 use warg_protocol::{
-    registry::{FederatedRegistryId, LogId, RegistryLen, TimestampedCheckpoint},
+    registry::{FederatedRegistryId, LogId, RecordId, RegistryLen, TimestampedCheckpoint},
     PublishedProtoEnvelopeBody, SerdeEnvelope,
 };
+
+/// Represents a fetch ledger response.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchLedgerResponse {
+    /// Whether there are more records to fetch.
+    #[serde(default)]
+    pub more: bool,
+    /// The starting log index for the batch of records.
+    pub starting_index: RegistryLen,
+    /// The ledger records.
+    #[serde(default)]
+    pub records: Vec<(LogId, RecordId)>,
+}
 
 /// Wraps the PublishedProtoEnvelopeBody with a fetch token.
 #[derive(Debug, Serialize, Deserialize)]

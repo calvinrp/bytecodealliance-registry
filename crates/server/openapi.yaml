@@ -33,6 +33,34 @@ servers:
     description: Local development server
 
 paths:
+  /fetch/ledger/{startingIndex}:
+    get:
+      summary: Fetch registry ledger.
+      operationId: fetchLedger
+      security: []
+      tags:
+        - ledger
+      description: |
+        Fetch registry ledger logId's and recordId's.
+      parameters:
+        - name: startingIndex
+          in: path
+          description: The starting registry index.
+          required: true
+          type: integer
+      responses:
+        "200":
+          description: The ledger records batch is returned.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/LedgerRecords"
+        default:
+          description: An error occurred when processing the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /fetch/logs:
     post:
       summary: Fetch registry logs
@@ -452,6 +480,33 @@ components:
           example:
             "sha256:7d865e959b2466918c9863afca942d0fb89d7c9ac0c99bafc3749504ded9773": "sha256:7d865e959b2466918c9863afca942d0fb89d7c9ac0c99bafc3749504ded97730"
             "sha256:b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c": null
+    FetchLedgerResponse:
+      type: object
+      description: A response containing the requested ledger records.
+      additionalProperties: false
+      properties:
+        more:
+          type: boolean
+          description: |
+            Whether there may be more records available.
+
+            This occurs when the number of records returned for a log reaches the requested limit.
+
+            If `true`, the client should make another request with the new last known record identifiers.
+          example: false
+        startingIndex:
+          type: integer
+          description: The starting registry index for the batch of ledger records.
+          example: 0
+        records:
+          type: array
+          description: The array of ledger [logId, recordId] records.
+          items:
+            type: array
+            minItems: 2
+            maxItems: 2
+            items:
+              "$ref": "#/components/schemas/AnyHash"
     FetchLogsResponse:
       type: object
       description: A response containing the requested logs.
