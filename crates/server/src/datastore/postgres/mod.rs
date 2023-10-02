@@ -466,7 +466,7 @@ impl DataStore for PostgresDataStore {
                 schema::logs::log_id,
                 schema::records::record_id,
             ))
-            .filter(schema::records::registry_log_index.gt(starting_index as i64))
+            .filter(schema::records::registry_log_index.ge(starting_index as i64))
             .order(schema::records::registry_log_index.asc())
             .limit(limit as i64)
             .load::<(Option<i64>, ParsedText<AnyHash>, ParsedText<AnyHash>)>(&mut conn)
