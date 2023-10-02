@@ -538,6 +538,15 @@ components:
           description: The map of federation registry identifiers to signed timestamped checkpoints.
           additionalProperties:
             $ref: "#/components/schemas/SignedCheckpoint"
+          example:
+            registry.example.com:
+              contents:
+                logLength: 42
+                logRoot: "sha256:b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c"
+                mapRoot: "sha256:b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c"
+                timestamp: 1692035502
+              keyId: "sha256:b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c"
+              signature: "ecdsa-p256:MEUCIQCzWZBW6ux9LecP66Y+hjmLZTP/hZVz7puzlPTXcRT2wwIgQZO7nxP0nugtw18MwHZ26ROFWcJmgCtKOguK031Y1D0="
     PublishPackageRecordRequest:
       type: object
       description: A request to publish a record to a package log.
