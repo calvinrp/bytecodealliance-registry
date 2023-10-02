@@ -121,7 +121,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /package/{logId}/record:
     post:
-      summary: Publish package record.
+      summary: Publish package record
       operationId: publishPackageRecord
       security: []
       tags:
@@ -175,7 +175,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /package/{logId}/record/{recordId}:
     get:
-      summary: Get package record status.
+      summary: Get package record status
       operationId: getPackageRecord
       security: []
       tags:
@@ -241,7 +241,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /content/{digest}:
     get:
-      summary: Get content sources.
+      summary: Get content sources
       operationId: getContentDigest
       security: []
       tags:
@@ -295,7 +295,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /proof/consistency:
     post:
-      summary: Prove registry checkpoint consistency.
+      summary: Prove registry checkpoint consistency
       operationId: proveConsistency
       security: []
       tags:
@@ -357,7 +357,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /proof/inclusion:
     post:
-      summary: Prove log leaf inclusion.
+      summary: Prove log leaf inclusion
       operationId: proveInclusion
       security: []
       tags:
