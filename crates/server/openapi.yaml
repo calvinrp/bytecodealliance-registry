@@ -47,7 +47,8 @@ paths:
           in: path
           description: The starting registry index.
           required: true
-          type: integer
+          schema:
+            type: integer
       responses:
         "200":
           description: The ledger records batch is returned.
@@ -1143,7 +1144,7 @@ components:
           example: false
         ledger:
           type: array
-          description: The array of ledger logId and recordId records.
+          description: The array of ledger (registryIndex, logId, recordId) records.
           items:
             type: array
             minItems: 3
