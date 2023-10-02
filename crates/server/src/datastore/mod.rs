@@ -123,7 +123,7 @@ pub trait DataStore: Send + Sync {
         &self,
         starting_index: RegistryIndex,
         limit: usize,
-    ) -> Result<Vec<LogLeaf>, DataStoreError>;
+    ) -> Result<Vec<(RegistryIndex, LogLeaf)>, DataStoreError>;
 
     /// Looks up the log_id and record_id from the registry log index.  
     async fn get_log_leafs_with_registry_index(

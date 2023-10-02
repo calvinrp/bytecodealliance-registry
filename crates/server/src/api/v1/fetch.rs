@@ -182,14 +182,10 @@ async fn fetch_ledger(
         .get_log_leafs_starting_with_registry_index(starting_index, LIMIT)
         .await?
         .into_iter()
-        .map(|log_leaf| (log_leaf.log_id, log_leaf.record_id))
-        .collect::<Vec<(LogId, RecordId)>>();
+        .map(|(registry_index, log_leaf)| (registry_index, log_leaf.log_id, log_leaf.record_id))
+        .collect::<Vec<(RegistryIndex, LogId, RecordId)>>();
 
     let more = ledger.len() <= LIMIT;
 
-    Ok(Json(FetchLedgerResponse {
-        more,
-        starting_index,
-        ledger,
-    }))
+    Ok(Json(FetchLedgerResponse { more, ledger }))
 }

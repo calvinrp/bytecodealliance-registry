@@ -125,13 +125,13 @@ impl DataStore for MemoryDataStore {
         &self,
         starting_index: RegistryIndex,
         limit: usize,
-    ) -> Result<Vec<LogLeaf>, DataStoreError> {
+    ) -> Result<Vec<(RegistryIndex, LogLeaf)>, DataStoreError> {
         let state = self.0.read().await;
 
         let mut leafs = Vec::with_capacity(limit);
         for entry in starting_index..starting_index + limit {
             match state.log_leafs.get(&entry) {
-                Some(log_leaf) => leafs.push(log_leaf.clone()),
+                Some(log_leaf) => leafs.push((entry, log_leaf.clone())),
                 None => break,
             }
         }
