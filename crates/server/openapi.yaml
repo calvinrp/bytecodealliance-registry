@@ -23,6 +23,8 @@ tags:
     description: API for fetching checkpoints and logs from the registry.
   - name: package
     description: API for managing package logs in the registry.
+  - name: content
+    description: API for requesting content digests in the registry.
   - name: proof
     description: API for proving the integrity of the registry.
 
@@ -82,60 +84,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SignedCheckpoint"
-        default:
-          description: An error occurred when processing the request.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  /content/{digest}:
-    get:
-      summary: Get a content digest sources.
-      operationId: getContentDigest
-      security: []
-      tags:
-        - content
-      description: |
-        Gets a content sources for the digest from the registry.
-      parameters:
-        - name: digest
-          in: path
-          description: The content digest.
-          required: true
-          schema:
-            "$ref": "#/components/schemas/AnyHash"
-      responses:
-        "200":
-          description: The content digest sources.
-          content:
-            application/json:
-              schema:
-                "$ref": "#/components/schemas/ContentDigestSources"
-        "404":
-          description: A requested entity was not found.
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: false
-                required:
-                  - status
-                  - type
-                  - id
-                properties:
-                  status:
-                    type: integer
-                    description: The HTTP status code for the error.
-                    example: 404
-                  type:
-                    type: string
-                    description: The type of entity that was not found.
-                    enum: [contentDigest]
-                    example: contentDigest
-                  id:
-                    "$ref": "#/components/schemas/AnyHash"
-                    description: |
-                      The identifier of the entity that was not found.
         default:
           description: An error occurred when processing the request.
           content:
@@ -252,6 +200,60 @@ paths:
                     description: The type of entity that was not found.
                     enum: [log, record]
                     example: log
+                  id:
+                    "$ref": "#/components/schemas/AnyHash"
+                    description: |
+                      The identifier of the entity that was not found.
+        default:
+          description: An error occurred when processing the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /content/{digest}:
+    get:
+      summary: Get a content digest sources.
+      operationId: getContentDigest
+      security: []
+      tags:
+        - content
+      description: |
+        Gets a content sources for the digest from the registry.
+      parameters:
+        - name: digest
+          in: path
+          description: The content digest.
+          required: true
+          schema:
+            "$ref": "#/components/schemas/AnyHash"
+      responses:
+        "200":
+          description: The content digest sources.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ContentDigestSources"
+        "404":
+          description: A requested entity was not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - status
+                  - type
+                  - id
+                properties:
+                  status:
+                    type: integer
+                    description: The HTTP status code for the error.
+                    example: 404
+                  type:
+                    type: string
+                    description: The type of entity that was not found.
+                    enum: [contentDigest]
+                    example: contentDigest
                   id:
                     "$ref": "#/components/schemas/AnyHash"
                     description: |
