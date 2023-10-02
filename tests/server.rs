@@ -9,8 +9,8 @@ use std::{
 };
 use url::Url;
 use warg_api::v1::{
+    content::{ContentDigestSources, ContentSource},
     package::PublishRecordRequest,
-    content::{ContentSource, ContentDigestSources},
     paths,
 };
 use warg_client::{
@@ -416,7 +416,7 @@ async fn test_custom_content_url(config: &Config) -> Result<()> {
 
     // Look up the content URL for the record
     let client = api::Client::new(config.default_url.as_ref().unwrap())?;
-    let ContentDigestSources{ content_sources } = client.request_content_digest(&digest).await?;
+    let ContentDigestSources { content_sources } = client.request_content_digest(&digest).await?;
     assert_eq!(content_sources.len(), 1);
     let sources = content_sources
         .get(&digest)
