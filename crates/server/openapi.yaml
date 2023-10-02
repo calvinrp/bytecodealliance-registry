@@ -88,6 +88,60 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /content/{digest}:
+    get:
+      summary: Get a content digest sources.
+      operationId: getContentDigest
+      security: []
+      tags:
+        - content
+      description: |
+        Gets a content sources for the digest from the registry.
+      parameters:
+        - name: digest
+          in: path
+          description: The content digest.
+          required: true
+          schema:
+            "$ref": "#/components/schemas/AnyHash"
+      responses:
+        "200":
+          description: The content digest sources.
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ContentDigestSources"
+        "404":
+          description: A requested entity was not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - status
+                  - type
+                  - id
+                properties:
+                  status:
+                    type: integer
+                    description: The HTTP status code for the error.
+                    example: 404
+                  type:
+                    type: string
+                    description: The type of entity that was not found.
+                    enum: [contentDigest]
+                    example: contentDigest
+                  id:
+                    "$ref": "#/components/schemas/AnyHash"
+                    description: |
+                      The identifier of the entity that was not found.
+        default:
+          description: An error occurred when processing the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /package/{logId}/record:
     post:
       summary: Publish a new record to a package log.
@@ -697,9 +751,6 @@ components:
         record:
           "$ref": "#/components/schemas/EnvelopeBody"
           description: The package record.
-        contentSources:
-          "$ref": "#/components/schemas/ContentSourceMap"
-          description: The content sources for the package record.
     Checkpoint:
       type: object
       description: |
@@ -875,6 +926,15 @@ components:
             description: The HTTP header value.
           example:
             authorization: Bearer asdf
+    ContentDigestSources:
+      type: object
+      description: Content digest sources for download.
+      required:
+        - contentSources
+      properties:
+        contentSources:
+          "$ref": "#/components/schemas/ContentSourceMap"
+          description: The content sources for the content digest.
     ContentSourceMap:
       type: object
       description: The map of content digest to sources.
@@ -901,6 +961,9 @@ components:
     HttpSource:
       type: object
       description: A known HTTP content source.
+      required:
+        - type
+        - url
       properties:
         type:
           type: string
@@ -912,6 +975,21 @@ components:
           description: The URL of the content.
           example: https://example.com/contents.wasm
           format: uri
+        headers:
+          type: object
+          description: The HTTP headers for upload request.
+          additionalProperties:
+            type: string
+            description: The HTTP header value.
+          example:
+            authorization: Bearer asdf
+        supportsRangeHeader:
+          type: boolean
+          description: Flag indicating if the server URL supports Range header.
+        size:
+          type: integer
+          description: Content size in bytes.
+          example: 1024
     PackageNotIncludedError:
       type: object
       additionalProperties: false

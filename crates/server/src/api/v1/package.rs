@@ -20,10 +20,9 @@ use std::sync::Arc;
 use std::{collections::HashMap, path::PathBuf};
 use tempfile::NamedTempFile;
 use tokio::io::AsyncWriteExt;
-use url::Url;
 use warg_api::v1::package::{
-    ContentSource, MissingContent, PackageError, PackageRecord, PackageRecordState,
-    PublishRecordRequest, UploadEndpoint,
+    MissingContent, PackageError, PackageRecord, PackageRecordState, PublishRecordRequest,
+    UploadEndpoint,
 };
 use warg_crypto::hash::{AnyHash, Sha256};
 use warg_protocol::{
@@ -35,7 +34,6 @@ use warg_protocol::{
 #[derive(Clone)]
 pub struct Config {
     core_service: CoreService,
-    content_base_url: Url,
     files_dir: PathBuf,
     temp_dir: PathBuf,
     content_policy: Option<Arc<dyn ContentPolicy>>,
@@ -45,7 +43,6 @@ pub struct Config {
 impl Config {
     pub fn new(
         core_service: CoreService,
-        content_base_url: Url,
         files_dir: PathBuf,
         temp_dir: PathBuf,
         content_policy: Option<Arc<dyn ContentPolicy>>,
@@ -53,7 +50,6 @@ impl Config {
     ) -> Self {
         Self {
             core_service,
-            content_base_url,
             files_dir,
             temp_dir,
             content_policy,
@@ -82,15 +78,6 @@ impl Config {
 
     fn content_path(&self, digest: &AnyHash) -> PathBuf {
         self.files_dir.join(self.content_file_name(digest))
-    }
-
-    fn content_url(&self, digest: &AnyHash) -> String {
-        self.content_base_url
-            .join("content/")
-            .unwrap()
-            .join(&self.content_file_name(digest))
-            .unwrap()
-            .to_string()
     }
 
     fn build_missing_content<'a>(
@@ -295,21 +282,6 @@ async fn get_record(
             state: PackageRecordState::Rejected { reason },
         })),
         RecordStatus::Published => {
-            let content_sources = record
-                .envelope
-                .as_ref()
-                .contents()
-                .into_iter()
-                .map(|digest| {
-                    (
-                        digest.clone(),
-                        vec![ContentSource::Http {
-                            url: config.content_url(digest),
-                        }],
-                    )
-                })
-                .collect();
-
             let registry_index = record.registry_index.unwrap();
 
             Ok(Json(PackageRecord {
@@ -319,7 +291,6 @@ async fn get_record(
                     federated: None,
                     federated_log_id: None,
                     registry_index,
-                    content_sources,
                 },
             }))
         }
@@ -394,10 +365,7 @@ async fn upload_content(
             .await;
     }
 
-    Ok((
-        StatusCode::CREATED,
-        [(axum::http::header::LOCATION, config.content_url(&digest))],
-    ))
+    Ok(StatusCode::CREATED)
 }
 
 async fn process_content(

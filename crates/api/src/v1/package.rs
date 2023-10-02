@@ -1,5 +1,6 @@
 //! Types relating to the package API.
 
+pub use super::ContentSource;
 use crate::Status;
 use serde::{de::Unexpected, Deserialize, Serialize, Serializer};
 use std::{borrow::Cow, collections::HashMap};
@@ -9,17 +10,6 @@ use warg_protocol::{
     registry::{FederatedRegistryId, LogId, PackageId, RecordId, RegistryIndex},
     ProtoEnvelopeBody,
 };
-
-/// Represents the supported kinds of content sources.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
-pub enum ContentSource {
-    /// The content is located at an anonymous HTTP URL.
-    Http {
-        /// The URL of the content.
-        url: String,
-    },
-}
 
 /// Represents the supported kinds of content upload endpoints.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -111,8 +101,6 @@ pub enum PackageRecordState {
     Published {
         /// The envelope of the package record.
         record: ProtoEnvelopeBody,
-        /// The content sources of the record.
-        content_sources: HashMap<AnyHash, Vec<ContentSource>>,
         /// If it is a federated log, the registry identifier.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         federated: Option<FederatedRegistryId>,

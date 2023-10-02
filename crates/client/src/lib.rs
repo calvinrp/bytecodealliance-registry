@@ -297,7 +297,6 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
     ) -> Result<Option<PackageDownload>, ClientError> {
         tracing::info!("downloading package `{id}` with requirement `{requirement}`");
         let info = self.fetch_package(id).await?;
-        let log_id = LogId::package_log::<Sha256>(&info.id);
 
         match info.state.find_latest_release(requirement) {
             Some(release) => {
@@ -305,9 +304,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                     .content()
                     .context("invalid state: not yanked but missing content")?
                     .clone();
-                let path = self
-                    .download_content(&log_id, &release.record_id, &digest)
-                    .await?;
+                let path = self.download_content(&digest).await?;
                 Ok(Some(PackageDownload {
                     version: release.version.clone(),
                     digest,
@@ -334,7 +331,6 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
     ) -> Result<PackageDownload, ClientError> {
         tracing::info!("downloading version {version} of package `{package}`");
         let info = self.fetch_package(package).await?;
-        let log_id = LogId::package_log::<Sha256>(&info.id);
 
         let release =
             info.state
@@ -354,9 +350,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         Ok(PackageDownload {
             version: version.clone(),
             digest: digest.clone(),
-            path: self
-                .download_content(&log_id, &release.record_id, digest)
-                .await?,
+            path: self.download_content(digest).await?,
         })
     }
 
@@ -716,12 +710,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         Ok(record)
     }
 
-    async fn download_content(
-        &self,
-        log_id: &LogId,
-        record_id: &RecordId,
-        digest: &AnyHash,
-    ) -> Result<PathBuf, ClientError> {
+    async fn download_content(&self, digest: &AnyHash) -> Result<PathBuf, ClientError> {
         match self.content.content_location(digest) {
             Some(path) => {
                 tracing::info!("content for digest `{digest}` already exists in storage");
@@ -730,7 +719,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
             None => {
                 self.content
                     .store_content(
-                        Box::pin(self.api.download_content(log_id, record_id, digest).await?),
+                        Box::pin(self.api.download_content(digest).await?),
                         Some(digest),
                     )
                     .await?;
