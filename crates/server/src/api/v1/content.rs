@@ -70,7 +70,7 @@ async fn get_content(
     let url = config.content_url(&digest);
     content_sources.insert(
         digest,
-        vec![ContentSource::Http {
+        vec![ContentSource::HttpGet {
             url,
             headers: HashMap::new(),
             supports_range_header: false,

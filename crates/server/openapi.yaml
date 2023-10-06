@@ -898,14 +898,14 @@ components:
     ContentSource:
       description: A known content source.
       oneOf:
-        - "$ref": "#/components/schemas/HttpSource"
+        - "$ref": "#/components/schemas/HttpGet"
       discriminator:
         propertyName: type
         mapping:
-          http: "#/components/schemas/HttpSource"
-    HttpSource:
+          http: "#/components/schemas/HttpGet"
+    HttpGet:
       type: object
-      description: A known HTTP content source.
+      description: A known GET HTTP content source.
       required:
         - type
         - url

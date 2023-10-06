@@ -242,7 +242,7 @@ impl Client {
             .ok_or(ClientError::AllSourcesFailed(digest.clone()))?;
 
         for source in sources {
-            let ContentSource::Http { url, headers, .. } = source;
+            let ContentSource::HttpGet { url, headers, .. } = source;
             let headers = headers
                 .iter()
                 .map(|(k, v)| {

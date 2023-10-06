@@ -13,8 +13,8 @@ use std::collections::HashMap;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum ContentSource {
-    /// The content is located at an HTTP URL.
-    Http {
+    /// The content is located at an GET HTTP URL.
+    HttpGet {
         /// The URL of the content.
         url: String,
         /// Optional header names and values for the request.

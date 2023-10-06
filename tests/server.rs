@@ -429,7 +429,7 @@ async fn test_custom_content_url(config: &Config) -> Result<()> {
     );
 
     match &sources[0] {
-        ContentSource::Http { url, .. } => {
+        ContentSource::HttpGet { url, .. } => {
             assert_eq!(url, &expected_url);
         }
     }
