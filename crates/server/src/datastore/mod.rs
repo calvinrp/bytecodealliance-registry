@@ -118,6 +118,13 @@ pub trait DataStore: Send + Sync {
         &self,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<LogLeaf, DataStoreError>> + Send>>, DataStoreError>;
 
+    /// Gets a batch of log_id's and record_id's from the registry log index.  
+    async fn get_log_leafs_starting_with_registry_index(
+        &self,
+        starting_index: RegistryIndex,
+        limit: usize,
+    ) -> Result<Vec<(RegistryIndex, LogLeaf)>, DataStoreError>;
+
     /// Looks up the log_id and record_id from the registry log index.  
     async fn get_log_leafs_with_registry_index(
         &self,

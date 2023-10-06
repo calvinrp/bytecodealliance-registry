@@ -1,6 +1,12 @@
 //! The paths of the Warg REST API.
 
-use warg_protocol::registry::{LogId, RecordId};
+use warg_crypto::hash::AnyHash;
+use warg_protocol::registry::{LogId, RecordId, RegistryIndex};
+
+/// The path of the "fetch ledger" API.
+pub fn fetch_ledger(starting_index: RegistryIndex) -> String {
+    format!("v1/fetch/ledger/{starting_index}")
+}
 
 /// The path of the "fetch logs" API.
 pub fn fetch_logs() -> &'static str {
@@ -15,6 +21,11 @@ pub fn fetch_checkpoint() -> &'static str {
 /// The path of the "publish package record" API.
 pub fn publish_package_record(log_id: &LogId) -> String {
     format!("v1/package/{log_id}/record")
+}
+
+/// The path to request download of content digest.
+pub fn content_sources(digest: &AnyHash) -> String {
+    format!("v1/content/{digest}")
 }
 
 /// The path for a package record.

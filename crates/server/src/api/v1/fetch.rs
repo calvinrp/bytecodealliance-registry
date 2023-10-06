@@ -1,4 +1,4 @@
-use super::Json;
+use super::{Json, Path};
 use crate::datastore::DataStoreError;
 use crate::services::CoreService;
 use axum::http::StatusCode;
@@ -10,9 +10,11 @@ use axum::{
     Router,
 };
 use std::collections::HashMap;
-use warg_api::v1::fetch::{FetchError, FetchLogsRequest, FetchLogsResponse, PublishedRecord};
+use warg_api::v1::fetch::{
+    FetchError, FetchLedgerResponse, FetchLogsRequest, FetchLogsResponse, PublishedRecord,
+};
 use warg_crypto::hash::{AnyHash, Sha256};
-use warg_protocol::registry::{LogId, RecordId, TimestampedCheckpoint};
+use warg_protocol::registry::{LogId, RecordId, RegistryIndex, TimestampedCheckpoint};
 use warg_protocol::SerdeEnvelope;
 
 const DEFAULT_RECORDS_LIMIT: u16 = 100;
@@ -30,6 +32,7 @@ impl Config {
 
     pub fn into_router(self) -> Router {
         Router::new()
+            .route("/ledger/:starting_index", get(fetch_ledger))
             .route("/logs", post(fetch_logs))
             .route("/checkpoint", get(fetch_checkpoint))
             .with_state(self)
@@ -163,4 +166,26 @@ async fn fetch_checkpoint(
     Ok(Json(
         config.core_service.store().get_latest_checkpoint().await?,
     ))
+}
+
+#[debug_handler]
+async fn fetch_ledger(
+    State(config): State<Config>,
+    Path(starting_index): Path<RegistryIndex>,
+) -> Result<Json<FetchLedgerResponse>, FetchApiError> {
+    const LIMIT: usize = 1000; // TODO limit as a query param?
+
+    let mut ledger = config
+        .core_service
+        .store()
+        .get_log_leafs_starting_with_registry_index(starting_index, LIMIT + 1) // +1 to detect more
+        .await?
+        .into_iter()
+        .map(|(registry_index, log_leaf)| (registry_index, log_leaf.log_id, log_leaf.record_id))
+        .collect::<Vec<(RegistryIndex, LogId, RecordId)>>();
+
+    let more = ledger.len() > LIMIT;
+    ledger.truncate(LIMIT); // since could have +1
+
+    Ok(Json(FetchLedgerResponse { more, ledger }))
 }
