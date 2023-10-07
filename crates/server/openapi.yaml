@@ -521,7 +521,8 @@ paths:
                     example: logLength
                   id:
                     type: integer
-                    description: The identifier of the entity that was not found.  "422":
+                    description: The identifier of the entity that was not found.
+        "422":
           description: The checkpoint verification failed.
           content:
             application/json:
@@ -536,7 +537,7 @@ paths:
                   status:
                     type: integer
                     description: The HTTP status code for the error.
-                    example: 404
+                    example: 422
                   type:
                     type: string
                     description: The type of entity that was invalid.
