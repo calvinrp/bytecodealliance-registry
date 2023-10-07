@@ -1,4 +1,4 @@
-use super::{Json, Path};
+use super::{Json, Path, ProxyRegistry};
 use axum::{
     debug_handler, extract::State, http::StatusCode, response::IntoResponse, routing::get, Router,
 };
@@ -51,6 +51,15 @@ impl Config {
 
 struct ContentApiError(ContentError);
 
+impl ContentApiError {
+    fn unsupported(message: impl ToString) -> Self {
+        Self(ContentError::Message {
+            status: StatusCode::NOT_IMPLEMENTED.as_u16(),
+            message: message.to_string(),
+        })
+    }
+}
+
 impl IntoResponse for ContentApiError {
     fn into_response(self) -> axum::response::Response {
         (StatusCode::from_u16(self.0.status()).unwrap(), Json(self.0)).into_response()
@@ -61,7 +70,14 @@ impl IntoResponse for ContentApiError {
 async fn get_content(
     State(config): State<Config>,
     Path(digest): Path<AnyHash>,
+    ProxyRegistry(proxy_registry): ProxyRegistry,
 ) -> Result<Json<ContentSourcesResponse>, ContentApiError> {
+    if let Some(proxy_registry) = proxy_registry {
+        return Err(ContentApiError::unsupported(format!(
+            "proxy registry `{proxy_registry}` is unsupported"
+        )));
+    }
+
     if !config.content_present(&digest) {
         return Err(ContentApiError(ContentError::ContentDigestNotFound(digest)));
     }

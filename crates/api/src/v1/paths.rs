@@ -42,3 +42,8 @@ pub fn prove_consistency() -> &'static str {
 pub fn prove_inclusion() -> &'static str {
     "v1/proof/inclusion"
 }
+
+/// The path for verifying a checkpoint.
+pub fn verify_checkpoint() -> &'static str {
+    "v1/verify/checkpoint"
+}

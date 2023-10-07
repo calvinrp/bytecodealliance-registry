@@ -812,6 +812,33 @@ impl DataStore for PostgresDataStore {
         ))
     }
 
+    async fn get_checkpoint(
+        &self,
+        log_length: RegistryLen,
+    ) -> Result<SerdeEnvelope<TimestampedCheckpoint>, DataStoreError> {
+        let mut conn = self.pool.get().await?;
+
+        let checkpoint = schema::checkpoints::table
+            .filter(schema::checkpoints::log_length.eq(log_length as i64))
+            .first::<CheckpointData>(&mut conn)
+            .await
+            .optional()?
+            .ok_or_else(|| DataStoreError::CheckpointNotFound(log_length))?;
+
+        Ok(SerdeEnvelope::from_parts_unchecked(
+            TimestampedCheckpoint {
+                checkpoint: Checkpoint {
+                    log_root: checkpoint.log_root.0,
+                    log_length,
+                    map_root: checkpoint.map_root.0,
+                },
+                timestamp: checkpoint.timestamp.try_into().unwrap(),
+            },
+            checkpoint.key_id.0,
+            checkpoint.signature.0,
+        ))
+    }
+
     async fn get_operator_records(
         &self,
         log_id: &LogId,

@@ -1,4 +1,4 @@
-use super::{Json, Path};
+use super::{Json, Path, ProxyRegistry};
 use crate::datastore::DataStoreError;
 use crate::services::CoreService;
 use axum::http::StatusCode;
@@ -48,6 +48,13 @@ impl FetchApiError {
             message: message.to_string(),
         })
     }
+
+    fn unsupported(message: impl ToString) -> Self {
+        Self(FetchError::Message {
+            status: StatusCode::NOT_IMPLEMENTED.as_u16(),
+            message: message.to_string(),
+        })
+    }
 }
 
 impl From<DataStoreError> for FetchApiError {
@@ -81,8 +88,15 @@ impl IntoResponse for FetchApiError {
 #[debug_handler]
 async fn fetch_logs(
     State(config): State<Config>,
+    ProxyRegistry(proxy_registry): ProxyRegistry,
     Json(body): Json<FetchLogsRequest<'static>>,
 ) -> Result<Json<FetchLogsResponse>, FetchApiError> {
+    if let Some(proxy_registry) = proxy_registry {
+        return Err(FetchApiError::unsupported(format!(
+            "proxy registry `{proxy_registry}` is unsupported"
+        )));
+    }
+
     let limit = body.limit.unwrap_or(DEFAULT_RECORDS_LIMIT);
     if limit == 0 || limit > MAX_RECORDS_LIMIT {
         return Err(FetchApiError::bad_request(format!(
@@ -162,7 +176,14 @@ async fn fetch_logs(
 #[debug_handler]
 async fn fetch_checkpoint(
     State(config): State<Config>,
+    ProxyRegistry(proxy_registry): ProxyRegistry,
 ) -> Result<Json<SerdeEnvelope<TimestampedCheckpoint>>, FetchApiError> {
+    if let Some(proxy_registry) = proxy_registry {
+        return Err(FetchApiError::unsupported(format!(
+            "proxy registry `{proxy_registry}` is unsupported"
+        )));
+    }
+
     Ok(Json(
         config.core_service.store().get_latest_checkpoint().await?,
     ))
@@ -172,7 +193,14 @@ async fn fetch_checkpoint(
 async fn fetch_ledger(
     State(config): State<Config>,
     Path(starting_index): Path<RegistryIndex>,
+    ProxyRegistry(proxy_registry): ProxyRegistry,
 ) -> Result<Json<FetchLedgerResponse>, FetchApiError> {
+    if let Some(proxy_registry) = proxy_registry {
+        return Err(FetchApiError::unsupported(format!(
+            "proxy registry `{proxy_registry}` is unsupported"
+        )));
+    }
+
     const LIMIT: usize = 1000; // TODO limit as a query param?
 
     let mut ledger = config

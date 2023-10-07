@@ -1,4 +1,4 @@
-use super::{Json, Path};
+use super::{Json, Path, ProxyRegistry};
 use crate::{
     datastore::{DataStoreError, RecordStatus},
     policy::{
@@ -181,8 +181,15 @@ impl IntoResponse for PackageApiError {
 async fn publish_record(
     State(config): State<Config>,
     Path(log_id): Path<LogId>,
+    ProxyRegistry(proxy_registry): ProxyRegistry,
     Json(body): Json<PublishRecordRequest<'static>>,
 ) -> Result<impl IntoResponse, PackageApiError> {
+    if let Some(proxy_registry) = proxy_registry {
+        return Err(PackageApiError::unsupported(format!(
+            "proxy registry `{proxy_registry}` is unsupported"
+        )));
+    }
+
     let expected_log_id = LogId::package_log::<Sha256>(&body.id);
     if expected_log_id != log_id {
         return Err(PackageApiError::bad_request(format!(
@@ -257,7 +264,14 @@ async fn publish_record(
 async fn get_record(
     State(config): State<Config>,
     Path((log_id, record_id)): Path<(LogId, RecordId)>,
+    ProxyRegistry(proxy_registry): ProxyRegistry,
 ) -> Result<Json<PackageRecord>, PackageApiError> {
+    if let Some(proxy_registry) = proxy_registry {
+        return Err(PackageApiError::unsupported(format!(
+            "proxy registry `{proxy_registry}` is unsupported"
+        )));
+    }
+
     let record = config
         .core_service
         .store()
@@ -296,8 +310,15 @@ async fn get_record(
 async fn upload_content(
     State(config): State<Config>,
     Path((log_id, record_id, digest)): Path<(LogId, RecordId, AnyHash)>,
+    ProxyRegistry(proxy_registry): ProxyRegistry,
     stream: BodyStream,
 ) -> Result<impl IntoResponse, PackageApiError> {
+    if let Some(proxy_registry) = proxy_registry {
+        return Err(PackageApiError::unsupported(format!(
+            "proxy registry `{proxy_registry}` is unsupported"
+        )));
+    }
+
     match config
         .core_service
         .store()

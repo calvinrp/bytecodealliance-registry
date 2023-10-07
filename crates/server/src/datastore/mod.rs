@@ -233,6 +233,12 @@ pub trait DataStore: Send + Sync {
         &self,
     ) -> Result<SerdeEnvelope<TimestampedCheckpoint>, DataStoreError>;
 
+    /// Get checkpoint by log length.
+    async fn get_checkpoint(
+        &self,
+        log_length: RegistryLen,
+    ) -> Result<SerdeEnvelope<TimestampedCheckpoint>, DataStoreError>;
+
     /// Gets the operator records for the given registry log length.
     async fn get_operator_records(
         &self,

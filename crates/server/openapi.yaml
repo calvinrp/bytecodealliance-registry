@@ -27,6 +27,8 @@ tags:
     description: API for content sources in the registry.
   - name: proof
     description: API for proving the integrity of the registry.
+  - name: monitor
+    description: API for monitoring the integrity of the registry.
 
 servers:
   - url: http://localhost:8090/v1
@@ -49,6 +51,12 @@ paths:
           required: true
           schema:
             $ref: "#/components/schemas/RegistryIndex"
+        - name: X-Proxy-Registry
+          in: header
+          description: The proxy registry URI Authority context to evaluate the request instead of the current registry.
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           description: The ledger records batch is returned.
@@ -71,6 +79,13 @@ paths:
         - fetch
       description: |
         Fetch the operator and packages logs from the registry.
+      parameters:
+        - name: X-Proxy-Registry
+          in: header
+          description: The proxy registry URI Authority context to evaluate the request instead of the current registry.
+          required: false
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -106,6 +121,13 @@ paths:
       tags:
         - fetch
       description: Fetch the latest checkpoint from the registry.
+      parameters:
+        - name: X-Proxy-Registry
+          in: header
+          description: The proxy registry URI Authority context to evaluate the request instead of the current registry.
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           description: The checkpoint was successfully fetched.
@@ -139,6 +161,12 @@ paths:
           required: true
           schema:
             "$ref": "#/components/schemas/AnyHash"
+        - name: X-Proxy-Registry
+          in: header
+          description: The proxy registry URI Authority context to evaluate the request instead of the current registry.
+          required: false
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -201,6 +229,12 @@ paths:
           required: true
           schema:
             "$ref": "#/components/schemas/AnyHash"
+        - name: X-Proxy-Registry
+          in: header
+          description: The proxy registry URI Authority context to evaluate the request instead of the current registry.
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           description: The package record.
@@ -255,6 +289,12 @@ paths:
           required: true
           schema:
             "$ref": "#/components/schemas/AnyHash"
+        - name: X-Proxy-Registry
+          in: header
+          description: The proxy registry URI Authority context to evaluate the request instead of the current registry.
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           description: The content digest sources.
@@ -302,6 +342,13 @@ paths:
         - proof
       description: |
         Proves the consistency of the registry between two specified checkpoints.
+      parameters:
+        - name: X-Proxy-Registry
+          in: header
+          description: The proxy registry URI Authority context to evaluate the request instead of the current registry.
+          required: false
+          schema:
+            type: string
       requestBody:
         content:
           application/json:
@@ -364,6 +411,13 @@ paths:
         - proof
       description: |
         Proves that the given log leafs are present in the given registry checkpoint.
+      parameters:
+        - name: X-Proxy-Registry
+          in: header
+          description: The proxy registry URI Authority context to evaluate the request instead of the current registry.
+          required: false
+          schema:
+            type: string
       requestBody:
         content:
           application/json:
@@ -415,6 +469,82 @@ paths:
                     packageNotIncluded: "#/components/schemas/PackageNotIncludedError"
                     incorrectProof: "#/components/schemas/IncorrectProofError"
                     failure: "#/components/schemas/BundleFailureError"
+        default:
+          description: An error occurred when processing the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /verify/checkpoint:
+    post:
+      summary: Verify registry checkpoint
+      operationId: verifyCheckpoint
+      security: []
+      tags:
+        - monitor
+      description: Verify checkpoint from the registry.
+      parameters:
+        - name: X-Proxy-Registry
+          in: header
+          description: The proxy registry URI Authority context to evaluate the request instead of the current registry.
+          required: false
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignedCheckpoint"
+      responses:
+        "200":
+          description: The checkpoint was successfully verified.
+        "404":
+          description: A requested entity was not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - status
+                  - type
+                  - id
+                properties:
+                  status:
+                    type: integer
+                    description: The HTTP status code for the error.
+                    example: 404
+                  type:
+                    type: string
+                    description: The type of entity that was not found.
+                    enum: [logLength]
+                    example: logLength
+                  id:
+                    type: integer
+                    description: The identifier of the entity that was not found.  "422":
+          description: The checkpoint verification failed.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - status
+                  - type
+                  - id
+                properties:
+                  status:
+                    type: integer
+                    description: The HTTP status code for the error.
+                    example: 404
+                  type:
+                    type: string
+                    description: The type of entity that was invalid.
+                    enum: [keyId, signature, logRoot, mapRoot]
+                    example: logRoot
+                  id:
+                    type: string
+                    description: The identifier of the entity that was not found. 
         default:
           description: An error occurred when processing the request.
           content:

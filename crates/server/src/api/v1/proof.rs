@@ -1,4 +1,4 @@
-use super::Json;
+use super::{Json, ProxyRegistry};
 use crate::services::{CoreService, CoreServiceError};
 use axum::{
     debug_handler, extract::State, http::StatusCode, response::IntoResponse, routing::post, Router,
@@ -27,6 +27,15 @@ impl Config {
 }
 
 struct ProofApiError(ProofError);
+
+impl ProofApiError {
+    fn unsupported(message: impl ToString) -> Self {
+        Self(ProofError::Message {
+            status: StatusCode::NOT_IMPLEMENTED.as_u16(),
+            message: message.to_string(),
+        })
+    }
+}
 
 impl From<CoreServiceError> for ProofApiError {
     fn from(value: CoreServiceError) -> Self {
@@ -60,8 +69,15 @@ impl IntoResponse for ProofApiError {
 #[debug_handler]
 async fn prove_consistency(
     State(config): State<Config>,
+    ProxyRegistry(proxy_registry): ProxyRegistry,
     Json(body): Json<ConsistencyRequest>,
 ) -> Result<Json<ConsistencyResponse>, ProofApiError> {
+    if let Some(proxy_registry) = proxy_registry {
+        return Err(ProofApiError::unsupported(format!(
+            "proxy registry `{proxy_registry}` is unsupported"
+        )));
+    }
+
     let bundle = config
         .core
         .log_consistency_proof(body.from as RegistryLen, body.to as RegistryLen)
@@ -75,8 +91,15 @@ async fn prove_consistency(
 #[debug_handler]
 async fn prove_inclusion(
     State(config): State<Config>,
+    ProxyRegistry(proxy_registry): ProxyRegistry,
     Json(body): Json<InclusionRequest>,
 ) -> Result<Json<InclusionResponse>, ProofApiError> {
+    if let Some(proxy_registry) = proxy_registry {
+        return Err(ProofApiError::unsupported(format!(
+            "proxy registry `{proxy_registry}` is unsupported"
+        )));
+    }
+
     let log_length = body.log_length as RegistryLen;
     let leafs = body
         .leafs
