@@ -20,7 +20,7 @@ use warg_api::v1::{
     proof::{ConsistencyRequest, InclusionRequest},
 };
 use warg_crypto::{
-    hash::{AnyHash, Hash, Sha256},
+    hash::{AnyHash, Sha256},
     signing, Encode, Signable,
 };
 use warg_protocol::{
@@ -385,8 +385,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         packages: impl IntoIterator<Item = &mut PackageInfo>,
     ) -> Result<(), ClientError> {
         let checkpoint = &ts_checkpoint.as_ref().checkpoint;
-        let checkpoint_id: AnyHash = Hash::<Sha256>::of(checkpoint).into();
-        tracing::info!("updating to checkpoint `{checkpoint_id}`");
+        tracing::info!("updating to checkpoint log length `{}`", checkpoint.log_length);
 
         let mut operator = self.registry.load_operator().await?.unwrap_or_default();
 
@@ -663,6 +662,10 @@ impl FileSystemClient {
             content_dir,
         } = config.storage_paths_for_url(url)?;
 
+        let monitor_url = monitor_url
+            .or(config.default_monitor_url.as_deref())
+            .map(|url| RegistryUrl::new(url).unwrap().into_url());
+
         let (packages, content) = match (
             FileSystemRegistryStorage::try_lock(registries_dir.clone())?,
             FileSystemContentStorage::try_lock(content_dir.clone())?,
@@ -696,6 +699,11 @@ impl FileSystemClient {
             registries_dir,
             content_dir,
         } = config.storage_paths_for_url(url)?;
+
+        let monitor_url = monitor_url
+            .or(config.default_monitor_url.as_deref())
+            .map(|url| RegistryUrl::new(url).unwrap().into_url());
+
         Self::new(
             registry_url.into_url(),
             monitor_url,

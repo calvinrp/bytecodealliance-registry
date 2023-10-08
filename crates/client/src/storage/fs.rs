@@ -87,7 +87,7 @@ impl FileSystemRegistryStorage {
 impl RegistryStorage for FileSystemRegistryStorage {
     async fn reset(&self, all_registries: bool) -> Result<()> {
         if all_registries {
-            remove(&self.base_dir.parent().unwrap()).await
+            remove(self.base_dir.parent().unwrap()).await
         } else {
             remove(&self.base_dir).await
         }

@@ -14,6 +14,7 @@ use warg_api::v1::{
     content::{ContentError, ContentSourcesResponse},
     fetch::{FetchError, FetchLogsRequest, FetchLogsResponse},
     package::{ContentSource, PackageError, PackageRecord, PublishRecordRequest},
+    monitor::MonitorError,
     paths,
     proof::{
         ConsistencyRequest, ConsistencyResponse, InclusionRequest, InclusionResponse, ProofError,
@@ -46,6 +47,9 @@ pub enum ClientError {
     /// An error was returned from the proof API.
     #[error(transparent)]
     Proof(#[from] ProofError),
+    /// An error was returned from the monitor API.
+    #[error(transparent)]
+    Monitor(#[from] MonitorError),
     /// An error occurred while communicating with the registry.
     #[error("failed to send request to registry server: {0}")]
     Communication(#[from] reqwest::Error),
@@ -155,7 +159,7 @@ impl Client {
     pub fn new(url: impl IntoUrl, monitor_url: Option<impl IntoUrl>) -> Result<Self> {
         let url = RegistryUrl::new(url)?;
         let monitor_url = match monitor_url {
-            Some(url) => Some(RegistryUrl::new(url)?),
+            Some(monitor_url) => Some(RegistryUrl::new(monitor_url)?),
             None => None,
         };
         Ok(Self {
@@ -200,7 +204,12 @@ impl Client {
         let log_length = ts_checkpoint.as_ref().checkpoint.log_length;
         tracing::debug!("verifying checkpoint log length `{log_length}` at `{url}`");
         let response = self.client.post(url).json(ts_checkpoint).send().await?;
-        into_result::<_, PackageError>(response).await
+        if !response.status().is_success() {
+            return Err(ClientError::Package(
+                deserialize::<PackageError>(response).await?,
+            ));
+        }
+        Ok(())
     }
 
     /// Fetches package log entries from the registry.
