@@ -75,6 +75,24 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         &self.content
     }
 
+    /// Reset client storage for the registry.
+    pub async fn reset_registry(&self, all_registries: bool) -> ClientResult<()> {
+        tracing::info!("resetting registry local state");
+        self.registry
+            .reset(all_registries)
+            .await
+            .or(Err(ClientError::ResettingRegistryLocalStateFailed))
+    }
+
+    /// Remove client content cache.
+    pub async fn remove_content_cache(&self) -> ClientResult<()> {
+        tracing::info!("removing content cache");
+        self.content
+            .reset()
+            .await
+            .or(Err(ClientError::RemovingContentCacheFailed))
+    }
+
     /// Submits the publish information in client storage.
     ///
     /// If there's no publishing information in client storage, an error is returned.
@@ -704,6 +722,14 @@ pub enum ClientError {
     /// No default registry server URL is configured.
     #[error("no default registry server URL is configured")]
     NoDefaultUrl,
+
+    /// Resetting registry local state.
+    #[error("resetting registry state failed")]
+    ResettingRegistryLocalStateFailed,
+
+    /// Resetting content local cache.
+    #[error("removing content cache failed")]
+    RemovingContentCacheFailed,
 
     /// Checkpoint signature failed verification
     #[error("invalid checkpoint key ID `{key_id}`")]
