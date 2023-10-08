@@ -10,7 +10,7 @@ use warg_protocol::registry::PackageId;
 pub mod support;
 
 fn create_client(config: &Config) -> Result<FileSystemClient> {
-    match FileSystemClient::try_new_with_config(None, config)? {
+    match FileSystemClient::try_new_with_config(None, None, config)? {
         StorageLockResult::Acquired(client) => Ok(client),
         _ => bail!("failed to acquire storage lock"),
     }

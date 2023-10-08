@@ -10,6 +10,10 @@ pub struct ConfigCommand {
     #[clap(long, value_name = "URL")]
     pub registry: Option<String>,
 
+    /// The default monitor URL to use.
+    #[clap(long, value_name = "MONITOR")]
+    pub monitor: Option<String>,
+
     /// The path to the registries directory to use.
     #[clap(long, value_name = "REGISTRIES")]
     pub registries_dir: Option<PathBuf>,
@@ -50,6 +54,12 @@ impl ConfigCommand {
             .transpose()?
             .map(|u| u.to_string());
 
+        let default_monitor_url = self
+            .monitor
+            .map(RegistryUrl::new)
+            .transpose()?
+            .map(|u| u.to_string());
+
         // The paths specified on the command line are relative to the current
         // directory.
         //
@@ -58,6 +68,7 @@ impl ConfigCommand {
         let cwd = std::env::current_dir().context("failed to determine current directory")?;
         let config = Config {
             default_url,
+            default_monitor_url,
             registries_dir: self.registries_dir.map(|p| cwd.join(p)),
             content_dir: self.content_dir.map(|p| cwd.join(p)),
         };

@@ -32,6 +32,9 @@ pub struct CommonOptions {
     /// The URL of the registry to use.
     #[clap(long, value_name = "URL")]
     pub registry: Option<String>,
+    /// The URL of the monitor to use.
+    #[clap(long, value_name = "MONITOR")]
+    pub monitor: Option<String>,
     /// The name to use for the signing key.
     #[clap(long, short, value_name = "KEY_NAME", default_value = "default")]
     pub key_name: String,
@@ -63,7 +66,11 @@ impl CommonOptions {
 
     /// Creates the warg client to use.
     pub fn create_client(&self, config: &Config) -> Result<FileSystemClient, ClientError> {
-        match FileSystemClient::try_new_with_config(self.registry.as_deref(), config)? {
+        match FileSystemClient::try_new_with_config(
+            self.registry.as_deref(),
+            self.monitor.as_deref(),
+            config,
+        )? {
             StorageLockResult::Acquired(client) => Ok(client),
             StorageLockResult::NotAcquired(path) => {
                 println!(
@@ -71,7 +78,11 @@ impl CommonOptions {
                     path = path.display()
                 );
 
-                FileSystemClient::new_with_config(self.registry.as_deref(), config)
+                FileSystemClient::new_with_config(
+                    self.registry.as_deref(),
+                    self.monitor.as_deref(),
+                    config,
+                )
             }
         }
     }

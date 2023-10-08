@@ -47,11 +47,16 @@ pub struct Client<R, C> {
 impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
     /// Creates a new client for the given URL, registry storage, and
     /// content storage.
-    pub fn new(url: impl IntoUrl, registry: R, content: C) -> ClientResult<Self> {
+    pub fn new(
+        url: impl IntoUrl,
+        monitor_url: Option<impl IntoUrl>,
+        registry: R,
+        content: C,
+    ) -> ClientResult<Self> {
         Ok(Self {
             registry,
             content,
-            api: api::Client::new(url)?,
+            api: api::Client::new(url, monitor_url)?,
         })
     }
 
@@ -125,7 +130,9 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         // If we're not initializing the package and a head was not explicitly specified,
         // updated to the latest checkpoint to get the latest known head.
         if !initializing && info.head.is_none() {
-            self.update_checkpoint(&self.api.latest_checkpoint().await?, [&mut package])
+            let ts_checkpoint = self.api.latest_checkpoint().await?;
+            self.api.verify_checkpoint(&ts_checkpoint).await?;
+            self.update_checkpoint(&ts_checkpoint, [&mut package])
                 .await?;
 
             info.head = package.state.head().as_ref().map(|h| h.digest.clone());
@@ -241,7 +248,9 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         tracing::info!("updating all packages to latest checkpoint");
 
         let mut updating = self.registry.load_packages().await?;
-        self.update_checkpoint(&self.api.latest_checkpoint().await?, &mut updating)
+        let ts_checkpoint = self.api.latest_checkpoint().await?;
+        self.api.verify_checkpoint(&ts_checkpoint).await?;
+        self.update_checkpoint(&ts_checkpoint, &mut updating)
             .await?;
 
         Ok(())
@@ -267,7 +276,9 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
             );
         }
 
-        self.update_checkpoint(&self.api.latest_checkpoint().await?, &mut updating)
+        let ts_checkpoint = self.api.latest_checkpoint().await?;
+        self.api.verify_checkpoint(&ts_checkpoint).await?;
+        self.update_checkpoint(&ts_checkpoint, &mut updating)
             .await?;
 
         Ok(())
@@ -547,8 +558,9 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
             }
             None => {
                 let mut info = PackageInfo::new(id.clone());
-                self.update_checkpoint(&self.api.latest_checkpoint().await?, [&mut info])
-                    .await?;
+                let ts_checkpoint = self.api.latest_checkpoint().await?;
+                self.api.verify_checkpoint(&ts_checkpoint).await?;
+                self.update_checkpoint(&ts_checkpoint, [&mut info]).await?;
 
                 Ok(info)
             }
@@ -624,6 +636,7 @@ impl FileSystemClient {
     /// directory that could not be locked.
     pub fn try_new_with_config(
         url: Option<&str>,
+        monitor_url: Option<&str>,
         config: &Config,
     ) -> Result<StorageLockResult<Self>, ClientError> {
         let StoragePaths {
@@ -643,6 +656,7 @@ impl FileSystemClient {
 
         Ok(StorageLockResult::Acquired(Self::new(
             url.into_url(),
+            monitor_url,
             packages,
             content,
         )?))
@@ -654,7 +668,11 @@ impl FileSystemClient {
     /// URL, an error is returned.
     ///
     /// This method blocks if storage locks cannot be acquired.
-    pub fn new_with_config(url: Option<&str>, config: &Config) -> Result<Self, ClientError> {
+    pub fn new_with_config(
+        url: Option<&str>,
+        monitor_url: Option<&str>,
+        config: &Config,
+    ) -> Result<Self, ClientError> {
         let StoragePaths {
             registry_url,
             registries_dir,
@@ -662,6 +680,7 @@ impl FileSystemClient {
         } = config.storage_paths_for_url(url)?;
         Self::new(
             registry_url.into_url(),
+            monitor_url,
             FileSystemRegistryStorage::lock(registries_dir)?,
             FileSystemContentStorage::lock(content_dir)?,
         )

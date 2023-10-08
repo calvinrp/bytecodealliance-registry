@@ -146,15 +146,21 @@ async fn into_result<T: DeserializeOwned, E: DeserializeOwned + Into<ClientError
 /// a Warg registry server.
 pub struct Client {
     url: RegistryUrl,
+    monitor_url: Option<RegistryUrl>,
     client: reqwest::Client,
 }
 
 impl Client {
     /// Creates a new API client with the given URL.
-    pub fn new(url: impl IntoUrl) -> Result<Self> {
+    pub fn new(url: impl IntoUrl, monitor_url: Option<impl IntoUrl>) -> Result<Self> {
         let url = RegistryUrl::new(url)?;
+        let monitor_url = match monitor_url {
+            Some(url) => Some(RegistryUrl::new(url)?),
+            None => None,
+        };
         Ok(Self {
             url,
+            monitor_url,
             client: reqwest::Client::new(),
         })
     }
@@ -164,6 +170,11 @@ impl Client {
         &self.url
     }
 
+    /// Gets the monitor URL of the API client.
+    pub fn monitor_url(&self) -> Option<&RegistryUrl> {
+        self.monitor_url.as_ref()
+    }
+
     /// Gets the latest checkpoint from the registry.
     pub async fn latest_checkpoint(
         &self,
@@ -171,6 +182,25 @@ impl Client {
         let url = self.url.join(paths::fetch_checkpoint());
         tracing::debug!("getting latest checkpoint at `{url}`");
         into_result::<_, FetchError>(reqwest::get(url).await?).await
+    }
+
+    /// Verify the checkpoint from the registry.
+    pub async fn verify_checkpoint(
+        &self,
+        ts_checkpoint: &SerdeEnvelope<TimestampedCheckpoint>,
+    ) -> Result<(), ClientError> {
+        if self.monitor_url.is_none() {
+            return Ok(());
+        }
+        let url = self
+            .monitor_url
+            .as_ref()
+            .unwrap()
+            .join(paths::verify_checkpoint());
+        let log_length = ts_checkpoint.as_ref().checkpoint.log_length;
+        tracing::debug!("verifying checkpoint log length `{log_length}` at `{url}`");
+        let response = self.client.post(url).json(ts_checkpoint).send().await?;
+        into_result::<_, PackageError>(response).await
     }
 
     /// Fetches package log entries from the registry.

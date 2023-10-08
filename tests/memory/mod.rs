@@ -16,7 +16,10 @@ async fn it_publishes_a_component() -> Result<()> {
     test_component_publishing(&config).await?;
 
     // There should be two log entries in the registry
-    let client = api::Client::new(config.default_url.as_ref().unwrap())?;
+    let client = api::Client::new(
+        config.default_url.as_ref().unwrap(),
+        config.default_monitor_url.as_ref(),
+    )?;
     let ts_checkpoint = client.latest_checkpoint().await?;
     assert_eq!(
         ts_checkpoint.as_ref().checkpoint.log_length,
@@ -33,7 +36,10 @@ async fn it_yanks_a_package() -> Result<()> {
     test_package_yanking(&config).await?;
 
     // There should be three entries in the registry
-    let client = api::Client::new(config.default_url.as_ref().unwrap())?;
+    let client = api::Client::new(
+        config.default_url.as_ref().unwrap(),
+        config.default_monitor_url.as_ref(),
+    )?;
     let ts_checkpoint = client.latest_checkpoint().await?;
     assert_eq!(
         ts_checkpoint.as_ref().checkpoint.log_length,
@@ -50,7 +56,10 @@ async fn it_publishes_a_wit_package() -> Result<()> {
     test_wit_publishing(&config).await?;
 
     // There should be two log entries in the registry
-    let client = api::Client::new(config.default_url.as_ref().unwrap())?;
+    let client = api::Client::new(
+        config.default_url.as_ref().unwrap(),
+        config.default_monitor_url.as_ref(),
+    )?;
     let ts_checkpoint = client.latest_checkpoint().await?;
     assert_eq!(
         ts_checkpoint.as_ref().checkpoint.log_length,

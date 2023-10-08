@@ -77,6 +77,10 @@ pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_url: Option<String>,
 
+    /// The default Warg monitor server URL.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_monitor_url: Option<String>,
+
     /// The path to the top-level directory where per-registry information is stored.
     ///
     /// This path is expected to be relative to the configuration file.
@@ -155,6 +159,7 @@ impl Config {
 
         let config = Config {
             default_url: self.default_url.clone(),
+            default_monitor_url: self.default_monitor_url.clone(),
             registries_dir: self.registries_dir.as_ref().map(|p| {
                 let p = normalize_path(parent.join(p).as_path());
                 assert!(p.is_absolute());

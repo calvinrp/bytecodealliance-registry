@@ -36,7 +36,7 @@ pub fn test_signing_key() -> PrivateKey {
 }
 
 pub fn create_client(config: &warg_client::Config) -> Result<FileSystemClient> {
-    match FileSystemClient::try_new_with_config(None, config)? {
+    match FileSystemClient::try_new_with_config(None, None, config)? {
         StorageLockResult::Acquired(client) => Ok(client),
         _ => bail!("failed to acquire storage lock"),
     }
@@ -154,6 +154,7 @@ pub async fn spawn_server(
 
     let config = warg_client::Config {
         default_url: Some(format!("http://{addr}")),
+        default_monitor_url: None,
         registries_dir: Some(root.join("registries")),
         content_dir: Some(root.join("content")),
     };
