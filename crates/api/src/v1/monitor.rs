@@ -8,6 +8,9 @@ use warg_crypto::hash::AnyHash;
 use warg_crypto::signing;
 use warg_protocol::registry::RegistryLen;
 
+/// The HTTP header for the Proxy Registry value.
+pub const PROXY_REGISTRY_HEADER_NAME: &str = "x-proxy-registry";
+
 /// Represents a monitor API error.
 #[non_exhaustive]
 #[derive(Debug, Error)]

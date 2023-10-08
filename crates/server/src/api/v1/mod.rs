@@ -2,6 +2,7 @@ use crate::{
     policy::{content::ContentPolicy, record::RecordPolicy},
     services::CoreService,
 };
+use warg_api::v1::monitor::PROXY_REGISTRY_HEADER_NAME;
 use anyhow::Result;
 use axum::{
     async_trait,
@@ -22,8 +23,6 @@ pub mod fetch;
 pub mod monitor;
 pub mod package;
 pub mod proof;
-
-const PROXY_REGISTRY_HEADER_NAME: &str = "x-proxy-registry";
 
 /// An extractor that wraps the JSON extractor of Axum.
 ///
