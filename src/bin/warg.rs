@@ -3,7 +3,7 @@ use clap::Parser;
 use std::process::exit;
 use tracing_subscriber::EnvFilter;
 use warg_cli::commands::{
-    CleanCommand, ConfigCommand, DownloadCommand, InfoCommand, KeyCommand, PublishCommand,
+    ClearCommand, ConfigCommand, DownloadCommand, InfoCommand, KeyCommand, PublishCommand,
     ResetCommand, RunCommand, UpdateCommand,
 };
 use warg_client::ClientError;
@@ -30,7 +30,7 @@ enum WargCli {
     #[clap(subcommand)]
     Publish(PublishCommand),
     Reset(ResetCommand),
-    Clean(CleanCommand),
+    Clear(ClearCommand),
     Run(RunCommand),
 }
 
@@ -48,7 +48,7 @@ async fn main() -> Result<()> {
         WargCli::Update(cmd) => cmd.exec().await,
         WargCli::Publish(cmd) => cmd.exec().await,
         WargCli::Reset(cmd) => cmd.exec().await,
-        WargCli::Clean(cmd) => cmd.exec().await,
+        WargCli::Clear(cmd) => cmd.exec().await,
         WargCli::Run(cmd) => cmd.exec().await,
     } {
         if let Some(e) = e.downcast_ref::<ClientError>() {

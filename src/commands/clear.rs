@@ -4,13 +4,13 @@ use clap::Args;
 
 /// Deletes local content cache.
 #[derive(Args)]
-pub struct CleanCommand {
+pub struct ClearCommand {
     /// The common command options.
     #[clap(flatten)]
     pub common: CommonOptions,
 }
 
-impl CleanCommand {
+impl ClearCommand {
     /// Executes the command.
     pub async fn exec(self) -> Result<()> {
         let config = self.common.read_config()?;

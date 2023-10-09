@@ -8,7 +8,7 @@ use warg_client::RegistryUrl;
 use warg_client::{ClientError, Config, FileSystemClient, StorageLockResult};
 use warg_crypto::signing::PrivateKey;
 
-mod clean;
+mod clear;
 mod config;
 mod download;
 mod info;
@@ -20,7 +20,7 @@ mod update;
 
 use crate::keyring::get_signing_key;
 
-pub use self::clean::*;
+pub use self::clear::*;
 pub use self::config::*;
 pub use self::download::*;
 pub use self::info::*;
