@@ -13,8 +13,8 @@ use thiserror::Error;
 use warg_api::v1::{
     content::{ContentError, ContentSourcesResponse},
     fetch::{FetchError, FetchLogsRequest, FetchLogsResponse},
-    package::{ContentSource, PackageError, PackageRecord, PublishRecordRequest},
     monitor::MonitorError,
+    package::{ContentSource, PackageError, PackageRecord, PublishRecordRequest},
     paths,
     proof::{
         ConsistencyRequest, ConsistencyResponse, InclusionRequest, InclusionResponse, ProofError,

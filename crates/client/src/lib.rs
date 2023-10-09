@@ -385,7 +385,10 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         packages: impl IntoIterator<Item = &mut PackageInfo>,
     ) -> Result<(), ClientError> {
         let checkpoint = &ts_checkpoint.as_ref().checkpoint;
-        tracing::info!("updating to checkpoint log length `{}`", checkpoint.log_length);
+        tracing::info!(
+            "updating to checkpoint log length `{}`",
+            checkpoint.log_length
+        );
 
         let mut operator = self.registry.load_operator().await?.unwrap_or_default();
 

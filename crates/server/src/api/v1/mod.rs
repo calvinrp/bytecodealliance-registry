@@ -2,7 +2,6 @@ use crate::{
     policy::{content::ContentPolicy, record::RecordPolicy},
     services::CoreService,
 };
-use warg_api::v1::monitor::PROXY_REGISTRY_HEADER_NAME;
 use anyhow::Result;
 use axum::{
     async_trait,
@@ -17,6 +16,7 @@ use axum::{
 use serde::{Serialize, Serializer};
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 use url::Url;
+use warg_api::v1::monitor::PROXY_REGISTRY_HEADER_NAME;
 
 pub mod content;
 pub mod fetch;
