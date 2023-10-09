@@ -180,6 +180,29 @@ echo 'hello world' | warg run demo:simple-grep hello
 
 This should download and run the package, and print out the line `hello world` as it matches the pattern `hello`.
 
+### Resetting and clearing local data
+
+To reset local data for the default registry:
+```
+warg reset
+```
+
+To reset local data for a specific registry, such as `127.0.0.1:8090`:
+```
+warg reset --registry 127.0.0.1:8090
+```
+
+To reset local data for all registries:
+```
+warg reset --all
+```
+
+To clear local content for all registries:
+```
+warg clear
+```
+
+
 ## Contributing
 
 This is a [Bytecode Alliance](https://bytecodealliance.org/) project, and
