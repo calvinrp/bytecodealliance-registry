@@ -22,7 +22,7 @@ use warg_api::v1::{
 };
 use warg_crypto::hash::{AnyHash, HashError, Sha256};
 use warg_protocol::{
-    registry::{Checkpoint, LogId, LogLeaf, MapLeaf, RecordId, TimestampedCheckpoint},
+    registry::{Checkpoint, LogId, LogLeaf, MapLeaf, RecordId, RegistryLen, TimestampedCheckpoint},
     SerdeEnvelope,
 };
 use warg_transparency::{
@@ -53,6 +53,10 @@ pub enum ClientError {
     /// An error occurred while communicating with the registry.
     #[error("failed to send request to registry server: {0}")]
     Communication(#[from] reqwest::Error),
+    /// Monitor could not verify checkpoint.
+    #[error("monitor could not verify checkpoint log length `{0}`")]
+    CheckpointNotVerified(RegistryLen),
+    /// An other error occurred during the requested operation.
     /// An unexpected response was received from the server.
     #[error("{message} (status code: {status})")]
     UnexpectedResponse {
@@ -194,6 +198,7 @@ impl Client {
         ts_checkpoint: &SerdeEnvelope<TimestampedCheckpoint>,
     ) -> Result<(), ClientError> {
         if self.monitor_url.is_none() {
+            println!("monitor not configured, skipping checkpoint verification...");
             return Ok(());
         }
         let url = self
@@ -204,12 +209,16 @@ impl Client {
         let log_length = ts_checkpoint.as_ref().checkpoint.log_length;
         tracing::debug!("verifying checkpoint log length `{log_length}` at `{url}`");
         let response = self.client.post(url).json(ts_checkpoint).send().await?;
-        if !response.status().is_success() {
-            return Err(ClientError::Package(
+        match response.status() {
+            StatusCode::NOT_FOUND => Err(ClientError::CheckpointNotVerified(log_length)),
+            status_code if !status_code.is_success() => Err(ClientError::Package(
                 deserialize::<PackageError>(response).await?,
-            ));
+            )),
+            _ => {
+                println!("monitor verified checkpoint...");
+                Ok(())
+            }
         }
-        Ok(())
     }
 
     /// Fetches package log entries from the registry.
