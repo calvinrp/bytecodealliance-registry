@@ -187,9 +187,9 @@ To reset local data for the default registry:
 warg reset
 ```
 
-To reset local data for a specific registry, such as `127.0.0.1:8090`:
+To reset local data for a specific registry, such as `registry.example.com`:
 ```
-warg reset --registry 127.0.0.1:8090
+warg reset --registry registry.example.com
 ```
 
 To reset local data for all registries:
