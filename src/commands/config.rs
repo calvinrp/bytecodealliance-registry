@@ -60,6 +60,10 @@ impl ConfigCommand {
             .transpose()?
             .map(|u| u.to_string());
 
+        if default_url == default_monitor_url {
+            println!("WARNING: registry and monitor should be independent services");
+        }
+
         // The paths specified on the command line are relative to the current
         // directory.
         //
