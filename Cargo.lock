@@ -4142,6 +4142,7 @@ dependencies = [
  "warg-crypto",
  "warg-protocol",
  "warg-server",
+ "wasmparser 0.108.0",
  "wasmtime",
  "wasmtime-wasi",
  "wat",

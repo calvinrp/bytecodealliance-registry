@@ -1,12 +1,14 @@
 //! Commands for the `warg` tool.
 
-use anyhow::Context;
-use anyhow::Result;
+use anyhow::{bail, Context, Result};
 use clap::Args;
 use std::path::PathBuf;
+use std::str::FromStr;
 use warg_client::RegistryUrl;
 use warg_client::{ClientError, Config, FileSystemClient, StorageLockResult};
 use warg_crypto::signing::PrivateKey;
+use warg_protocol::registry::PackageId;
+use wasmparser::names::KebabStr;
 
 mod clear;
 mod config;
@@ -103,5 +105,60 @@ impl CommonOptions {
         } else {
             get_signing_key(registry_url, &self.key_name)
         }
+    }
+}
+
+/// Mapping namespace from a source registry.
+#[derive(Clone, Debug)]
+pub struct NamespaceMapping {
+    /// Source registry's namespace
+    source_namespace: String,
+    /// Source registry's URL
+    source_registry: RegistryUrl,
+    /// If mapping to a different namespace, the target registry's namespace
+    target_namespace: Option<String>,
+}
+
+impl NamespaceMapping {
+    /// Creates a new namespace mapping from a source registry.
+    pub fn new(s: impl Into<String>) -> anyhow::Result<Self> {
+        let s = s.into();
+
+        if let Some(delim) = s.find('@') {
+            let source_namespace = &s[..delim];
+            let mut source_registry = &s[delim + 1..];
+
+            let target_namespace = if let Some(delim) = source_registry.rfind('=') {
+                let target_namespace = &source_registry[delim + 1..];
+                if !PackageId::is_valid_namespace(target_namespace) {
+                    bail!("invalid namespace mapping `{s}`: expected format is `<namespace>@<url>=<namespace>`");
+                }
+                source_registry = &source_registry[..delim];
+                Some(target_namespace)
+            } else {
+                None
+            };
+
+            let source_registry = RegistryUrl::new(source_registry)?;
+
+            // Validate the namespace is valid kebab strings
+            if PackageId::is_valid_namespace(source_namespace) {
+                return Ok(Self {
+                    source_namespace: source_namespace.to_string(),
+                    source_registry,
+                    target_namespace: target_namespace.map(|s| s.to_string()),
+                });
+            }
+        }
+
+        bail!("invalid namespace mapping `{s}`: expected format is `<namespace>@<url>=<namespace>`")
+    }
+}
+
+impl FromStr for NamespaceMapping {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::new(s)
     }
 }

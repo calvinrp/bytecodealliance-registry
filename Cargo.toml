@@ -13,6 +13,7 @@ repository = { workspace = true}
 warg-crypto = { workspace = true }
 warg-protocol = { workspace = true }
 warg-client = { workspace = true }
+wasmparser = { workspace = true }
 clap = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }

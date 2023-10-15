@@ -198,7 +198,7 @@ impl Client {
         ts_checkpoint: &SerdeEnvelope<TimestampedCheckpoint>,
     ) -> Result<(), ClientError> {
         if self.monitor_url.is_none() {
-            println!("monitor not configured, skipping checkpoint verification...");
+            println!("monitor not configured, skipping independent checkpoint verification...");
             return Ok(());
         }
         let url = self

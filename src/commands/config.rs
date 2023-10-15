@@ -1,3 +1,4 @@
+use super::NamespaceMapping;
 use anyhow::{bail, Context, Result};
 use clap::Args;
 use std::path::PathBuf;
@@ -31,6 +32,18 @@ pub struct ConfigCommand {
     /// If not specified, the default of `$CONFIG_DIR/warg/config.json` is used.
     #[clap(value_name = "PATH")]
     pub path: Option<PathBuf>,
+
+    /// The namespaces to map another namespace and optionally another registry.
+    #[clap(long = "namespace", value_delimiter = ',')]
+    pub namespace_map: Vec<NamespaceMapping>,
+
+    /// The registries to proxy to through the default registry server.
+    #[clap(long = "proxy", value_delimiter = ',')]
+    pub proxy_registries: Vec<RegistryUrl>,
+
+    /// Proxy all registries through the default registry server.
+    #[clap(long = "proxy-all")]
+    pub proxy_all: bool,
 }
 
 impl ConfigCommand {
