@@ -449,6 +449,18 @@ impl DataStore for MemoryDataStore {
         Ok(checkpoint.clone())
     }
 
+    async fn get_checkpoint(
+        &self,
+        log_length: RegistryLen,
+    ) -> Result<SerdeEnvelope<TimestampedCheckpoint>, DataStoreError> {
+        let state = self.0.read().await;
+        let checkpoint = state
+            .checkpoints
+            .get(&log_length)
+            .ok_or_else(|| DataStoreError::CheckpointNotFound(log_length))?;
+        Ok(checkpoint.clone())
+    }
+
     async fn get_operator_records(
         &self,
         log_id: &LogId,

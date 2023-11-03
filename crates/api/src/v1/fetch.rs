@@ -1,4 +1,4 @@
-//! Types relating to the fetch API.
+//! Types relating to the fetch logs API.
 
 use crate::Status;
 use serde::{de::Unexpected, Deserialize, Serialize, Serializer};

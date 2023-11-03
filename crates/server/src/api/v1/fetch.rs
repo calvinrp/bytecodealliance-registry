@@ -1,4 +1,4 @@
-use super::Json;
+use super::{Json, RegistryHeader};
 use crate::datastore::DataStoreError;
 use crate::services::CoreService;
 use axum::http::StatusCode;
@@ -78,6 +78,7 @@ impl IntoResponse for FetchApiError {
 #[debug_handler]
 async fn fetch_logs(
     State(config): State<Config>,
+    RegistryHeader(_registry_header): RegistryHeader,
     Json(body): Json<FetchLogsRequest<'static>>,
 ) -> Result<Json<FetchLogsResponse>, FetchApiError> {
     let limit = body.limit.unwrap_or(DEFAULT_RECORDS_LIMIT);
@@ -159,6 +160,7 @@ async fn fetch_logs(
 #[debug_handler]
 async fn fetch_checkpoint(
     State(config): State<Config>,
+    RegistryHeader(_registry_header): RegistryHeader,
 ) -> Result<Json<SerdeEnvelope<TimestampedCheckpoint>>, FetchApiError> {
     Ok(Json(
         config.core_service.store().get_latest_checkpoint().await?,
