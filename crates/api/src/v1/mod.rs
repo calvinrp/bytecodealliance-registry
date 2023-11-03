@@ -4,7 +4,6 @@ pub mod content;
 pub mod fetch;
 pub mod ledger;
 pub mod monitor;
-pub mod names;
 pub mod package;
 pub mod paths;
 pub mod proof;

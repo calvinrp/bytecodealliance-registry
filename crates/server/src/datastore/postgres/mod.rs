@@ -449,6 +449,38 @@ impl DataStore for PostgresDataStore {
         ))
     }
 
+    async fn get_log_leafs_starting_with_registry_index(
+        &self,
+        starting_index: RegistryIndex,
+        limit: usize,
+    ) -> Result<Vec<(RegistryIndex, LogLeaf)>, DataStoreError> {
+        let mut conn = self.pool.get().await?;
+
+        Ok(schema::records::table
+            .inner_join(schema::logs::table)
+            .select((
+                schema::records::registry_log_index,
+                schema::logs::log_id,
+                schema::records::record_id,
+            ))
+            .filter(schema::records::registry_log_index.ge(starting_index as i64))
+            .order(schema::records::registry_log_index.asc())
+            .limit(limit as i64)
+            .load::<(Option<i64>, ParsedText<AnyHash>, ParsedText<AnyHash>)>(&mut conn)
+            .await?
+            .into_iter()
+            .map(|(registry_index, log_id, record_id)| {
+                (
+                    registry_index.unwrap() as RegistryIndex,
+                    LogLeaf {
+                        log_id: log_id.0.into(),
+                        record_id: record_id.0.into(),
+                    },
+                )
+            })
+            .collect::<Vec<(RegistryIndex, LogLeaf)>>())
+    }
+
     // Note: order of the entries is expected to match to the corresponding returned log leafs.
     async fn get_log_leafs_with_registry_index(
         &self,
@@ -489,6 +521,43 @@ impl DataStore for PostgresDataStore {
                     .ok_or(DataStoreError::LogLeafNotFound(*registry_index))
             })
             .collect::<Result<Vec<_>, _>>()?)
+    }
+
+    async fn get_package_ids(
+        &self,
+        log_ids: &[LogId],
+    ) -> Result<HashMap<LogId, Option<PackageId>>, DataStoreError> {
+        let mut conn = self.pool.get().await?;
+
+        let map = schema::logs::table
+            .select((schema::logs::log_id, schema::logs::name))
+            .filter(
+                schema::logs::log_id.eq_any(
+                    log_ids
+                        .iter()
+                        .map(|log_id| TextRef(log_id))
+                        .collect::<Vec<TextRef<LogId>>>(),
+                ),
+            )
+            .load::<(ParsedText<AnyHash>, Option<String>)>(&mut conn)
+            .await?
+            .into_iter()
+            .map(|(log_id, opt_package_id)| {
+                (
+                    log_id.0.into(),
+                    opt_package_id.map(|id| PackageId::new(id).unwrap()),
+                )
+            })
+            .collect::<HashMap<LogId, Option<PackageId>>>();
+
+        // check if any log IDs were not found
+        for log_id in log_ids {
+            if !map.contains_key(log_id) {
+                return Err(DataStoreError::LogNotFound(log_id.clone()));
+            }
+        }
+
+        Ok(map)
     }
 
     async fn store_operator_record(

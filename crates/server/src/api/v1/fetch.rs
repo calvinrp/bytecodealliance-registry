@@ -10,13 +10,18 @@ use axum::{
     Router,
 };
 use std::collections::HashMap;
-use warg_api::v1::fetch::{FetchError, FetchLogsRequest, FetchLogsResponse, PublishedRecord};
+use warg_api::v1::fetch::{
+    FetchError, FetchLogsRequest, FetchLogsResponse, FetchPackageIdsRequest,
+    FetchPackageIdsResponse, PublishedRecord,
+};
 use warg_crypto::hash::{AnyHash, Sha256};
 use warg_protocol::registry::{LogId, RecordId, TimestampedCheckpoint};
 use warg_protocol::SerdeEnvelope;
 
 const DEFAULT_RECORDS_LIMIT: u16 = 100;
 const MAX_RECORDS_LIMIT: u16 = 1000;
+
+const MAX_PACKAGE_IDS_LIMIT: usize = 1000;
 
 #[derive(Clone)]
 pub struct Config {
@@ -30,8 +35,9 @@ impl Config {
 
     pub fn into_router(self) -> Router {
         Router::new()
-            .route("/logs", post(fetch_logs))
             .route("/checkpoint", get(fetch_checkpoint))
+            .route("/logs", post(fetch_logs))
+            .route("/ids", post(fetch_package_ids))
             .with_state(self)
     }
 }
@@ -165,4 +171,21 @@ async fn fetch_checkpoint(
     Ok(Json(
         config.core_service.store().get_latest_checkpoint().await?,
     ))
+}
+
+#[debug_handler]
+async fn fetch_package_ids(
+    State(config): State<Config>,
+    RegistryHeader(_registry_header): RegistryHeader,
+    Json(body): Json<FetchPackageIdsRequest<'static>>,
+) -> Result<Json<FetchPackageIdsResponse>, FetchApiError> {
+    let log_ids = if body.packages.len() > MAX_PACKAGE_IDS_LIMIT {
+        body.packages.get(..MAX_PACKAGE_IDS_LIMIT).unwrap()
+    } else {
+        &body.packages
+    };
+
+    let packages = config.core_service.store().get_package_ids(log_ids).await?;
+
+    Ok(Json(FetchPackageIdsResponse { packages }))
 }
