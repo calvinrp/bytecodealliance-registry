@@ -25,7 +25,7 @@ pub struct LedgerSource {
     /// The HTTP GET URL location for the ledger source.
     pub url: String,
     /// Optional, server accepts for HTTP Range header.
-    #[serde(default, skip_serializing_if = "is_false")]
+    #[serde(skip_serializing_if = "is_false")]
     pub accept_ranges: bool,
     /// Content type for the ledger source.
     #[serde(default, skip_serializing_if = "is_ledger_packed")]
@@ -49,4 +49,13 @@ pub enum LedgerSourceContentType {
     #[default]
     #[serde(rename = "application/vnd.bytecodealliance.registry.ledger.packed")]
     Packed,
+}
+
+impl LedgerSourceContentType {
+    /// Returns the content type represented as a string.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Packed => "application/vnd.bytecodealliance.registry.ledger.packed",
+        }
+    }
 }

@@ -124,9 +124,11 @@ impl DataStore for MemoryDataStore {
     async fn get_log_leafs_starting_with_registry_index(
         &self,
         starting_index: RegistryIndex,
-        limit: usize,
+        limit: Option<usize>,
     ) -> Result<Vec<(RegistryIndex, LogLeaf)>, DataStoreError> {
         let state = self.0.read().await;
+
+        let limit = limit.unwrap_or(state.log_leafs.len() - starting_index);
 
         let mut leafs = Vec::with_capacity(limit);
         for entry in starting_index..starting_index + limit {

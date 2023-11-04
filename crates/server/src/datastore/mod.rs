@@ -245,7 +245,7 @@ pub trait DataStore: Send + Sync {
     async fn get_log_leafs_starting_with_registry_index(
         &self,
         starting_index: RegistryIndex,
-        limit: usize,
+        limit: Option<usize>,
     ) -> Result<Vec<(RegistryIndex, LogLeaf)>, DataStoreError>;
 
     /// Gets the operator records for the given registry log length.

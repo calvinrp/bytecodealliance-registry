@@ -452,11 +452,11 @@ impl DataStore for PostgresDataStore {
     async fn get_log_leafs_starting_with_registry_index(
         &self,
         starting_index: RegistryIndex,
-        limit: usize,
+        limit: Option<usize>,
     ) -> Result<Vec<(RegistryIndex, LogLeaf)>, DataStoreError> {
         let mut conn = self.pool.get().await?;
 
-        Ok(schema::records::table
+        let query = schema::records::table
             .inner_join(schema::logs::table)
             .select((
                 schema::records::registry_log_index,
@@ -464,8 +464,15 @@ impl DataStore for PostgresDataStore {
                 schema::records::record_id,
             ))
             .filter(schema::records::registry_log_index.ge(starting_index as i64))
-            .order(schema::records::registry_log_index.asc())
-            .limit(limit as i64)
+            .order(schema::records::registry_log_index.asc());
+
+        let query = if let Some(limit) = limit {
+            query.limit(limit as i64)
+        } else {
+            query
+        };
+
+        Ok(query
             .load::<(Option<i64>, ParsedText<AnyHash>, ParsedText<AnyHash>)>(&mut conn)
             .await?
             .into_iter()

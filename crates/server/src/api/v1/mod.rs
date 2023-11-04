@@ -20,6 +20,7 @@ use warg_api::v1::REGISTRY_HEADER_NAME;
 
 pub mod content;
 pub mod fetch;
+pub mod ledger;
 pub mod monitor;
 pub mod package;
 pub mod proof;
@@ -145,12 +146,14 @@ pub fn create_router(
     );
     let fetch_config = fetch::Config::new(core.clone());
     let content_config = content::Config::new(content_base_url, files_dir);
-    let monitor_config = monitor::Config::new(core);
+    let monitor_config = monitor::Config::new(core.clone());
+    let ledger_config = ledger::Config::new(core);
 
     Router::new()
-        .nest("/package", package_config.into_router())
         .nest("/content", content_config.into_router())
         .nest("/fetch", fetch_config.into_router())
+        .nest("/ledger", ledger_config.into_router())
+        .nest("/package", package_config.into_router())
         .nest("/proof", proof_config.into_router())
         .nest("/verify", monitor_config.into_router())
         .fallback(not_found)
