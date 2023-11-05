@@ -1,4 +1,4 @@
-use super::{Error, Json, RegistryHeader};
+use super::{Error, Json, Path, RegistryHeader};
 use crate::datastore::DataStoreError;
 use crate::services::CoreService;
 use axum::http::StatusCode;
@@ -7,6 +7,9 @@ use axum::{
 };
 use warg_api::v1::ledger::{LedgerSource, LedgerSourceContentType, LedgerSourcesResponse};
 use warg_crypto::hash::HashAlgorithm;
+use warg_protocol::registry::RegistryIndex;
+
+const MAX_LEDGER_RECORDS_LIMIT: usize = 1000;
 
 #[derive(Clone)]
 pub struct Config {
@@ -21,7 +24,7 @@ impl Config {
     pub fn into_router(self) -> Router {
         Router::new()
             .route("/", get(get_ledger_sources))
-            .route("/records", get(get_ledger_records))
+            .route("/records/:start", get(get_ledger_records))
             .with_state(self)
     }
 }
@@ -59,27 +62,41 @@ async fn get_ledger_sources(
         .checkpoint
         .log_length;
 
+    let sources = (0..log_length)
+        .step_by(MAX_LEDGER_RECORDS_LIMIT)
+        .map(|start_index| {
+            let end_index = if start_index + MAX_LEDGER_RECORDS_LIMIT >= log_length {
+                log_length - 1
+            } else {
+                start_index + MAX_LEDGER_RECORDS_LIMIT - 1
+            };
+
+            LedgerSource {
+                first_registry_index: start_index,
+                last_registry_index: end_index,
+                url: format!("v1/ledger/records/{start_index}"),
+                accept_ranges: false,
+                content_type: LedgerSourceContentType::Packed,
+            }
+        })
+        .collect::<Vec<LedgerSource>>();
+
     Ok(Json(LedgerSourcesResponse {
         hash_algorithm: HashAlgorithm::Sha256,
-        sources: vec![LedgerSource {
-            first_registry_index: 0,
-            last_registry_index: log_length - 1,
-            url: "v1/ledger/records".to_string(),
-            accept_ranges: false,
-            content_type: LedgerSourceContentType::Packed,
-        }],
+        sources,
     }))
 }
 
 #[debug_handler]
 async fn get_ledger_records(
     State(config): State<Config>,
+    Path(start): Path<RegistryIndex>,
     RegistryHeader(_registry_header): RegistryHeader,
 ) -> Result<Response, LedgerApiError> {
     let log_leafs = config
         .core_service
         .store()
-        .get_log_leafs_starting_with_registry_index(0, None)
+        .get_log_leafs_starting_with_registry_index(start, Some(MAX_LEDGER_RECORDS_LIMIT))
         .await?;
 
     let mut body: Vec<u8> = Vec::with_capacity(log_leafs.len() * 64);
