@@ -3,7 +3,7 @@ use crate::datastore::DataStoreError;
 use crate::services::CoreService;
 use axum::http::StatusCode;
 use axum::{debug_handler, extract::State, response::IntoResponse, routing::post, Router};
-use warg_api::v1::monitor::MonitorError;
+use warg_api::v1::monitor::{CheckpointVerificationResponse, MonitorError};
 use warg_protocol::registry::TimestampedCheckpoint;
 use warg_protocol::SerdeEnvelope;
 
@@ -54,7 +54,7 @@ async fn verify_checkpoint(
     State(config): State<Config>,
     RegistryHeader(_registry_header): RegistryHeader,
     Json(body): Json<SerdeEnvelope<TimestampedCheckpoint>>,
-) -> Result<impl IntoResponse, MonitorApiError> {
+) -> Result<Json<CheckpointVerificationResponse>, MonitorApiError> {
     let checkpoint = config
         .core_service
         .store()
@@ -85,5 +85,5 @@ async fn verify_checkpoint(
         )));
     }
 
-    Ok(StatusCode::OK)
+    Ok(Json(CheckpointVerificationResponse::Verified))
 }

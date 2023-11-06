@@ -20,13 +20,15 @@ x-42c-skipIssues:
 
 tags:
   - name: fetch
-    description: API for fetching checkpoints and logs from the registry.
+    description: API for fetching checkpoints, logs and package IDs from the registry.
   - name: package
     description: API for managing package logs in the registry.
   - name: content
     description: API for content sources in the registry.
   - name: proof
     description: API for proving the integrity of the registry.
+  - name: monitor
+    description: API for verifying registry checkpoints.
 
 servers:
   - url: http://localhost:8090/v1
@@ -42,6 +44,13 @@ paths:
         - fetch
       description: |
         Fetch the operator and packages logs from the registry.
+      parameters:
+        - name: Warg-Registry
+          in: header
+          description: URI Authority of another registry, if present and supported the registry will respond on behalf of another registry.
+          required: false
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -51,12 +60,24 @@ paths:
       responses:
         "200":
           description: The logs were successfully fetched.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/FetchLogsResponse"
         "404":
           description: A requested entity was not found.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
@@ -65,6 +86,12 @@ paths:
                   - "$ref": "#/components/schemas/FetchLogsLogLengthNotFoundError"
         default:
           description: An error occurred when processing the request.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
@@ -77,15 +104,34 @@ paths:
       tags:
         - fetch
       description: Fetch the latest checkpoint from the registry.
+      parameters:
+        - name: Warg-Registry
+          in: header
+          description: URI Authority of another registry, if present and supported the registry will respond on behalf of another registry.
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           description: The checkpoint was successfully fetched.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/SignedCheckpoint"
         default:
           description: An error occurred when processing the request.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
@@ -110,6 +156,12 @@ paths:
           required: true
           schema:
             "$ref": "#/components/schemas/AnyHash"
+        - name: Warg-Registry
+          in: header
+          description: URI Authority of another registry, if present and supported the registry will respond on behalf of another registry.
+          required: false
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -119,6 +171,12 @@ paths:
       responses:
         "202":
           description: The package record was accepted.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
@@ -126,6 +184,12 @@ paths:
         "403":
           description: |
             The key used to sign the record was not authorized to publish a record to the log.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
@@ -134,12 +198,24 @@ paths:
           description: |
             The server does not support publishing package records with explicitly
             specified content source locations.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
         default:
           description: An error occurred when processing the request.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
@@ -172,15 +248,33 @@ paths:
           required: true
           schema:
             "$ref": "#/components/schemas/AnyHash"
+        - name: Warg-Registry
+          in: header
+          description: URI Authority of another registry, if present and supported the registry will respond on behalf of another registry.
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           description: The package record.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
                 "$ref": "#/components/schemas/PackageRecord"
         "404":
           description: A requested entity was not found.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
@@ -206,6 +300,12 @@ paths:
                       The identifier of the entity that was not found.
         default:
           description: An error occurred when processing the request.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
@@ -226,15 +326,33 @@ paths:
           required: true
           schema:
             "$ref": "#/components/schemas/AnyHash"
+        - name: Warg-Registry
+          in: header
+          description: URI Authority of another registry, if present and supported the registry will respond on behalf of another registry.
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           description: The content digest sources.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
                 "$ref": "#/components/schemas/ContentSourcesResponse"
         "404":
           description: A requested entity was not found.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
@@ -260,6 +378,12 @@ paths:
                       The identifier of the entity that was not found.
         default:
           description: An error occurred when processing the request.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
@@ -273,6 +397,13 @@ paths:
         - proof
       description: |
         Proves the consistency of the registry between two specified checkpoints.
+      parameters:
+        - name: Warg-Registry
+          in: header
+          description: URI Authority of another registry, if present and supported the registry will respond on behalf of another registry.
+          required: false
+          schema:
+            type: string
       requestBody:
         content:
           application/json:
@@ -281,12 +412,24 @@ paths:
       responses:
         "200":
           description: The consistency proof was generated successfully.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProveConsistencyResponse"
         "404":
           description: A requested entity was not found.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
@@ -311,6 +454,12 @@ paths:
                     description: The identifier of the entity that was not found. 
         "422":
           description: The proof bundle could not be generated.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
@@ -335,6 +484,13 @@ paths:
         - proof
       description: |
         Proves that the given log leafs are present in the given registry checkpoint.
+      parameters:
+        - name: Warg-Registry
+          in: header
+          description: URI Authority of another registry, if present and supported the registry will respond on behalf of another registry.
+          required: false
+          schema:
+            type: string
       requestBody:
         content:
           application/json:
@@ -343,12 +499,24 @@ paths:
       responses:
         "200":
           description: The inclusion proof was generated successfully.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProveInclusionResponse"
         "404":
           description: A requested entity was not found.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
@@ -373,6 +541,12 @@ paths:
                     description: The identifier of the entity that was not found.
         "422":
           description: The proof bundle could not be generated.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
@@ -388,10 +562,132 @@ paths:
                     failure: "#/components/schemas/BundleFailureError"
         default:
           description: An error occurred when processing the request.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /verify/checkpoint:
+    post:
+      summary: Verify registry checkpoint
+      operationId: verifyCheckpoint
+      security: []
+      tags:
+        - monitor
+      description: Verify checkpoint from the registry.
+      parameters:
+        - name: Warg-Registry
+          in: header
+          description: URI Authority of another registry, if present and supported the registry will respond on behalf of another registry.
+          required: false
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignedCheckpoint"
+      responses:
+        "200":
+          description: The checkpoint was successfully verified.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - "$ref": "#/components/schemas/CheckpointVerified"
+                  - "$ref": "#/components/schemas/CheckpointRetry"
+                  - "$ref": "#/components/schemas/CheckpointUnverified"
+                discriminator:
+                  propertyName: state
+                  mapping:
+                    verified: "#/components/schemas/CheckpointVerified"
+                    retry: "#/components/schemas/CheckpointRetry"
+                    unverified: "#/components/schemas/CheckpointUnverified"
+        "404":
+          description: A requested entity was not found.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - status
+                  - type
+                  - id
+                properties:
+                  status:
+                    type: integer
+                    description: The HTTP status code for the error.
+                    example: 404
+                  type:
+                    type: string
+                    description: The type of entity that was not found.
+                    enum: [logLength]
+                    example: logLength
+                  id:
+                    type: integer
+                    description: The identifier of the entity that was not found.
+        "422":
+          description: The checkpoint verification failed.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - status
+                  - type
+                  - id
+                properties:
+                  status:
+                    type: integer
+                    description: The HTTP status code for the error.
+                    example: 422
+                  type:
+                    type: string
+                    description: The type of entity that was invalid.
+                    enum: [keyId, signature, logRoot, mapRoot]
+                    example: logRoot
+                  id:
+                    type: string
+                    description: The identifier of the entity that was not found. 
+        default:
+          description: An error occurred when processing the request.
+          headers:
+            Warg-Registry:
+              schema:
+                type: string
+              description: URI Authority of another registry, if present and supported the registry responded on behalf of another registry.
+              required: false
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+
 components:
   schemas:
     Error:
@@ -898,6 +1194,44 @@ components:
           type: integer
           description: Content size in bytes.
           example: 1024
+    CheckpointVerified:
+      type: object
+      additionalProperties: false
+      required:
+        - state
+      properties:
+        state:
+          type: string
+          description: The verified checkpoint state.
+          enum: [verified]
+          example: verified
+    CheckpointRetry:
+      type: object
+      additionalProperties: false
+      required:
+        - state
+        - waitSeconds
+      properties:
+        state:
+          type: string
+          description: The unable to verify the checkpoint and instructs to retry.
+          enum: [retry]
+          example: retry
+        waitSeconds:
+          type: integer
+          description: The number of seconds to wait until retrying checkpoint verification.
+          example: 60
+    CheckpointUnverified:
+      type: object
+      additionalProperties: false
+      required:
+        - state
+      properties:
+        state:
+          type: string
+          description: The not able to verify checkpoint state.
+          enum: [unverified]
+          example: unverified
     PackageNotIncludedError:
       type: object
       additionalProperties: false
