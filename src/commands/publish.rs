@@ -127,10 +127,12 @@ impl PublishInitCommand {
         {
             Some(entry) => {
                 let signing_key = self.common.signing_key(client.url())?;
+                let registry = self.common.registry;
                 let record_id = client
                     .publish_with_info(
                         &signing_key,
                         PublishInfo {
+                            registry: registry.clone(),
                             name: self.name.clone(),
                             head: None,
                             entries: vec![entry],
@@ -139,14 +141,19 @@ impl PublishInitCommand {
                     .await?;
 
                 if self.no_wait {
-                    println!("submitted record `{record_id}` for publishing");
+                    println!("submitted record `{record_id}` for publishing with Warg-Registry header: `{registry:?}`");
                 } else {
                     client
-                        .wait_for_publish(&self.name, &record_id, DEFAULT_WAIT_INTERVAL)
+                        .wait_for_publish(
+                            registry.as_deref(),
+                            &self.name,
+                            &record_id,
+                            DEFAULT_WAIT_INTERVAL,
+                        )
                         .await?;
 
                     println!(
-                        "published initialization of package `{name}`",
+                        "published initialization of package `{name}` with Warg-Registry header: `{registry:?}`",
                         name = self.name,
                     );
                 }
@@ -214,10 +221,12 @@ impl PublishReleaseCommand {
         {
             Some(entry) => {
                 let signing_key = self.common.signing_key(client.url())?;
+                let registry = self.common.registry;
                 let record_id = client
                     .publish_with_info(
                         &signing_key,
                         PublishInfo {
+                            registry: registry.clone(),
                             name: self.name.clone(),
                             head: None,
                             entries: vec![entry],
@@ -226,14 +235,19 @@ impl PublishReleaseCommand {
                     .await?;
 
                 if self.no_wait {
-                    println!("submitted record `{record_id}` for publishing");
+                    println!("submitted record `{record_id}` for publishing with Warg-Registry header: `{registry:?}`");
                 } else {
                     client
-                        .wait_for_publish(&self.name, &record_id, DEFAULT_WAIT_INTERVAL)
+                        .wait_for_publish(
+                            registry.as_deref(),
+                            &self.name,
+                            &record_id,
+                            DEFAULT_WAIT_INTERVAL,
+                        )
                         .await?;
 
                     println!(
-                        "published version {version} of package `{name}`",
+                        "published version {version} of package `{name}` with Warg-Registry header: `{registry:?}`",
                         version = self.version,
                         name = self.name
                     );
@@ -284,10 +298,12 @@ impl PublishYankCommand {
         {
             Some(entry) => {
                 let signing_key = self.common.signing_key(client.url())?;
+                let registry = self.common.registry;
                 let record_id = client
                     .publish_with_info(
                         &signing_key,
                         PublishInfo {
+                            registry: registry.clone(),
                             name: self.name.clone(),
                             head: None,
                             entries: vec![entry],
@@ -296,14 +312,19 @@ impl PublishYankCommand {
                     .await?;
 
                 if self.no_wait {
-                    println!("submitted record `{record_id}` for publishing");
+                    println!("submitted record `{record_id}` for publishing with Warg-Registry header: `{registry:?}`");
                 } else {
                     client
-                        .wait_for_publish(&self.name, &record_id, DEFAULT_WAIT_INTERVAL)
+                        .wait_for_publish(
+                            registry.as_deref(),
+                            &self.name,
+                            &record_id,
+                            DEFAULT_WAIT_INTERVAL,
+                        )
                         .await?;
 
                     println!(
-                        "yanked version {version} of package `{name}`",
+                        "yanked version {version} of package `{name}` with Warg-Registry header: `{registry:?}`",
                         version = self.version,
                         name = self.name
                     );
@@ -363,10 +384,12 @@ impl PublishGrantCommand {
         {
             Some(entry) => {
                 let signing_key = self.common.signing_key(client.url())?;
+                let registry = self.common.registry;
                 let record_id = client
                     .publish_with_info(
                         &signing_key,
                         PublishInfo {
+                            registry: registry.clone(),
                             name: self.name.clone(),
                             head: None,
                             entries: vec![entry],
@@ -375,14 +398,19 @@ impl PublishGrantCommand {
                     .await?;
 
                 if self.no_wait {
-                    println!("submitted record `{record_id}` for publishing");
+                    println!("submitted record `{record_id}` for publishing with Warg-Registry header: `{registry:?}`");
                 } else {
                     client
-                        .wait_for_publish(&self.name, &record_id, DEFAULT_WAIT_INTERVAL)
+                        .wait_for_publish(
+                            registry.as_deref(),
+                            &self.name,
+                            &record_id,
+                            DEFAULT_WAIT_INTERVAL,
+                        )
                         .await?;
 
                     println!(
-                        "granted ({permissions_str}) to key ID `{key_id}` for package `{name}`",
+                        "granted ({permissions_str}) to key ID `{key_id}` for package `{name}` with Warg-Registry header: `{registry:?}`",
                         permissions_str = self.permissions.iter().join(","),
                         key_id = self.public_key.fingerprint(),
                         name = self.name
@@ -444,10 +472,12 @@ impl PublishRevokeCommand {
         {
             Some(entry) => {
                 let signing_key = self.common.signing_key(client.url())?;
+                let registry = self.common.registry;
                 let record_id = client
                     .publish_with_info(
                         &signing_key,
                         PublishInfo {
+                            registry: registry.clone(),
                             name: self.name.clone(),
                             head: None,
                             entries: vec![entry],
@@ -456,14 +486,19 @@ impl PublishRevokeCommand {
                     .await?;
 
                 if self.no_wait {
-                    println!("submitted record `{record_id}` for publishing");
+                    println!("submitted record `{record_id}` for publishing with Warg-Registry header: `{registry:?}`");
                 } else {
                     client
-                        .wait_for_publish(&self.name, &record_id, DEFAULT_WAIT_INTERVAL)
+                        .wait_for_publish(
+                            registry.as_deref(),
+                            &self.name,
+                            &record_id,
+                            DEFAULT_WAIT_INTERVAL,
+                        )
                         .await?;
 
                     println!(
-                        "revoked ({permissions_str}) from key ID `{key_id}` for package `{name}`",
+                        "revoked ({permissions_str}) from key ID `{key_id}` for package `{name}` with Warg-Registry header: `{registry:?}`",
                         permissions_str = self.permissions.iter().join(","),
                         key_id = self.key,
                         name = self.name
@@ -505,7 +540,9 @@ impl PublishStartCommand {
         match client.registry().load_publish().await? {
             Some(info) => bail!("a publish is already in progress for package `{name}`; use `publish abort` to abort the current publish", name = info.name),
             None => {
+                let registry = self.common.registry;
                 client.registry().store_publish(Some(&PublishInfo {
+                    registry,
                     name: self.name.clone(),
                     head: None,
                     entries: Default::default(),
@@ -633,31 +670,37 @@ impl PublishSubmitCommand {
 
                 let signing_key = self.common.signing_key(client.url())?;
                 let record_id = client.publish_with_info(&signing_key, info.clone()).await?;
+                let registry = self.common.registry;
 
                 client.registry().store_publish(None).await?;
 
                 if self.no_wait {
-                    println!("submitted record `{record_id}` for publishing");
+                    println!("submitted record `{record_id}` for publishing with Warg-Registry header: `{registry:?}`");
                 } else {
                     client
-                        .wait_for_publish(&info.name, &record_id, DEFAULT_WAIT_INTERVAL)
+                        .wait_for_publish(
+                            registry.as_deref(),
+                            &info.name,
+                            &record_id,
+                            DEFAULT_WAIT_INTERVAL,
+                        )
                         .await?;
 
                     for entry in &info.entries {
                         let name = &info.name;
                         match entry {
                             PublishEntry::Init => {
-                                println!("published initialization of package `{name}`");
+                                println!("published initialization of package `{name}` with Warg-Registry header: `{registry:?}`");
                             }
                             PublishEntry::Release { version, .. } => {
-                                println!("published version {version} of package `{name}`");
+                                println!("published version {version} of package `{name}` with Warg-Registry header: `{registry:?}`");
                             }
                             PublishEntry::Yank { version } => {
-                                println!("yanked version {version} of package `{name}`")
+                                println!("yanked version {version} of package `{name}` with Warg-Registry header: `{registry:?}`")
                             }
                             PublishEntry::Grant { key, permissions } => {
                                 println!(
-                                    "granted ({permissions_str}) to `{key_id}`",
+                                    "granted ({permissions_str}) to `{key_id}` with Warg-Registry header: `{registry:?}`",
                                     permissions_str = permissions.iter().join(","),
                                     key_id = key.fingerprint(),
                                 )
@@ -666,7 +709,7 @@ impl PublishSubmitCommand {
                                 key_id,
                                 permissions,
                             } => println!(
-                                "revoked ({permissions_str}) from `{key_id}`",
+                                "revoked ({permissions_str}) from `{key_id}` with Warg-Registry header: `{registry:?}`",
                                 permissions_str = permissions.iter().join(","),
                             ),
                         }
@@ -702,6 +745,7 @@ impl PublishWaitCommand {
         let config = self.common.read_config()?;
         let client = self.common.create_client(&config)?;
         let record_id = RecordId::from(self.record_id);
+        let registry = self.common.registry;
 
         println!(
             "waiting for record `{record_id} of package `{name}` to be published...",
@@ -709,11 +753,16 @@ impl PublishWaitCommand {
         );
 
         client
-            .wait_for_publish(&self.name, &record_id, Duration::from_secs(1))
+            .wait_for_publish(
+                registry.as_deref(),
+                &self.name,
+                &record_id,
+                Duration::from_secs(1),
+            )
             .await?;
 
         println!(
-            "record `{record_id} of package `{name}` has been published",
+            "record `{record_id} of package `{name}` has been published with Warg-Registry header: `{registry:?}`",
             name = self.name
         );
 

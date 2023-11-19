@@ -62,7 +62,7 @@ impl RegistryUrl {
     pub fn safe_label(&self) -> String {
         // Host
         let mut label = match self.0.host().unwrap() {
-            Host::Domain(domain) => domain.to_string(),
+            Host::Domain(domain) => domain.to_lowercase(),
             Host::Ipv4(ip) => ip.to_string(),
             Host::Ipv6(ip) => format!("ipv6_{ip}").replace(':', "."),
         };

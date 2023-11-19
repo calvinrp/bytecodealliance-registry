@@ -27,6 +27,7 @@ const TEMP_DIRECTORY: &str = "temp";
 const PENDING_PUBLISH_FILE: &str = "pending-publish.json";
 const LOCK_FILE_NAME: &str = ".lock";
 const PACKAGE_LOGS_DIR: &str = "package-logs";
+const IMPORT_REGISTRIES_DIR: &str = "import-registries";
 
 /// Represents a package storage using the local file system.
 pub struct FileSystemRegistryStorage {
@@ -66,16 +67,35 @@ impl FileSystemRegistryStorage {
         })
     }
 
-    fn operator_path(&self) -> PathBuf {
-        self.base_dir.join("operator.log")
+    fn operator_path(&self, registry: Option<&str>) -> PathBuf {
+        if let Some(registry) = registry {
+            self.base_dir
+                .join(IMPORT_REGISTRIES_DIR)
+                .join(encode_domain_safe_label(registry))
+                .join("operator.log")
+        } else {
+            self.base_dir.join("operator.log")
+        }
     }
 
-    fn package_path(&self, name: &PackageName) -> PathBuf {
-        self.base_dir.join(PACKAGE_LOGS_DIR).join(
-            LogId::package_log::<Sha256>(name)
-                .to_string()
-                .replace(':', "/"),
-        )
+    fn package_path(&self, registry: Option<&str>, name: &PackageName) -> PathBuf {
+        if let Some(registry) = registry {
+            self.base_dir
+                .join(IMPORT_REGISTRIES_DIR)
+                .join(encode_domain_safe_label(registry))
+                .join(PACKAGE_LOGS_DIR)
+                .join(
+                    LogId::package_log::<Sha256>(name)
+                        .to_string()
+                        .replace(':', "/"),
+                )
+        } else {
+            self.base_dir.join(PACKAGE_LOGS_DIR).join(
+                LogId::package_log::<Sha256>(name)
+                    .to_string()
+                    .replace(':', "/"),
+            )
+        }
     }
 
     fn pending_publish_path(&self) -> PathBuf {
@@ -93,24 +113,59 @@ impl RegistryStorage for FileSystemRegistryStorage {
         }
     }
 
-    async fn load_checkpoint(&self) -> Result<Option<SerdeEnvelope<TimestampedCheckpoint>>> {
-        load(&self.base_dir.join("checkpoint")).await
+    async fn load_checkpoint(
+        &self,
+        registry: Option<&str>,
+    ) -> Result<Option<SerdeEnvelope<TimestampedCheckpoint>>> {
+        if let Some(registry) = registry {
+            load(
+                &self
+                    .base_dir
+                    .join(IMPORT_REGISTRIES_DIR)
+                    .join(encode_domain_safe_label(registry))
+                    .join("checkpoint"),
+            )
+            .await
+        } else {
+            load(&self.base_dir.join("checkpoint")).await
+        }
     }
 
     async fn store_checkpoint(
         &self,
+        registry: Option<&str>,
         ts_checkpoint: &SerdeEnvelope<TimestampedCheckpoint>,
     ) -> Result<()> {
-        store(&self.base_dir.join("checkpoint"), ts_checkpoint).await
+        if let Some(registry) = registry {
+            store(
+                &self
+                    .base_dir
+                    .join(IMPORT_REGISTRIES_DIR)
+                    .join(encode_domain_safe_label(registry))
+                    .join("checkpoint"),
+                ts_checkpoint,
+            )
+            .await
+        } else {
+            store(&self.base_dir.join("checkpoint"), ts_checkpoint).await
+        }
     }
 
-    async fn load_packages(&self) -> Result<Vec<PackageInfo>> {
-        let mut packages = Vec::new();
+    async fn load_packages(&self, registry: Option<&str>) -> Result<Vec<PackageInfo>> {
+        let packages_dir = if let Some(registry) = registry {
+            self.base_dir
+                .join(IMPORT_REGISTRIES_DIR)
+                .join(encode_domain_safe_label(registry))
+                .join(PACKAGE_LOGS_DIR)
+        } else {
+            self.base_dir.join(PACKAGE_LOGS_DIR)
+        };
 
-        let packages_dir = self.base_dir.join(PACKAGE_LOGS_DIR);
         if !packages_dir.exists() {
             return Ok(vec![]);
         }
+
+        let mut packages = Vec::new();
 
         for entry in WalkDir::new(&packages_dir) {
             let entry = entry.with_context(|| {
@@ -142,20 +197,60 @@ impl RegistryStorage for FileSystemRegistryStorage {
         Ok(packages)
     }
 
-    async fn load_operator(&self) -> Result<Option<OperatorInfo>> {
-        Ok(load(&self.operator_path()).await?)
+    async fn list_import_registries(&self) -> Result<Vec<String>> {
+        let import_registries_dir = self.base_dir.join(IMPORT_REGISTRIES_DIR);
+
+        let mut registries = Vec::new();
+
+        if !import_registries_dir.exists() {
+            return Ok(vec![]);
+        }
+
+        for entry in WalkDir::new(&import_registries_dir) {
+            let entry = entry.with_context(|| {
+                anyhow!(
+                    "failed to walk directory `{path}`",
+                    path = import_registries_dir.display()
+                )
+            })?;
+
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+
+            if let Some(name) = path.file_name().and_then(OsStr::to_str) {
+                if !name.starts_with('.') {
+                    registries.push(decode_domain_safe_label(name));
+                }
+            }
+        }
+
+        Ok(registries)
+    }
+
+    async fn load_operator(&self, registry: Option<&str>) -> Result<Option<OperatorInfo>> {
+        Ok(load(&self.operator_path(registry)).await?)
     }
 
     async fn store_operator(&self, info: OperatorInfo) -> Result<()> {
-        store(&self.operator_path(), info).await
+        store(&self.operator_path(info.registry.as_deref()), info).await
     }
 
-    async fn load_package(&self, package: &PackageName) -> Result<Option<PackageInfo>> {
-        Ok(load(&self.package_path(package)).await?)
+    async fn load_package(
+        &self,
+        registry: Option<&str>,
+        package: &PackageName,
+    ) -> Result<Option<PackageInfo>> {
+        Ok(load(&self.package_path(registry, package)).await?)
     }
 
     async fn store_package(&self, info: &PackageInfo) -> Result<()> {
-        store(&self.package_path(&info.name), info).await
+        store(
+            &self.package_path(info.registry.as_deref(), &info.name),
+            info,
+        )
+        .await
     }
 
     async fn load_publish(&self) -> Result<Option<PublishInfo>> {
@@ -387,4 +482,12 @@ async fn delete(path: &Path) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn encode_domain_safe_label(domain: &str) -> String {
+    domain.replace('.', "_")
+}
+
+fn decode_domain_safe_label(safe_label: &str) -> String {
+    safe_label.replace('_', ".")
 }

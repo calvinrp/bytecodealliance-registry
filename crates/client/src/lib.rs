@@ -88,6 +88,27 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
             .or(Err(ClientError::ClearContentCacheFailed))
     }
 
+    /// Looks up in the operator logs the source registry. If not federated, then returns `None`.
+    pub async fn imported_registry(&self, name: &PackageName) -> ClientResult<Option<String>> {
+        tracing::info!("looking up source registry for package `{name}`");
+
+        let operator = self.registry.load_operator(None).await?.unwrap_or_default();
+
+        let namespace = name.namespace();
+
+        match operator.state.namespace_state(namespace) {
+            Ok(None) => Err(ClientError::PackageDoesNotExist { name: name.clone() }),
+            Err(defined_namespace) => Err(ClientError::PackageNamespaceDoesNotMatchCase {
+                namespace: namespace.to_string(),
+                defined: defined_namespace.to_string(),
+            }),
+            Ok(Some(state)) => match state {
+                operator::NamespaceState::Defined => Ok(None),
+                operator::NamespaceState::Imported { registry } => Ok(Some(registry.clone())),
+            },
+        }
+    }
+
     /// Submits the publish information in client storage.
     ///
     /// If there's no publishing information in client storage, an error is returned.
@@ -134,17 +155,22 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         );
         tracing::debug!("entries: {:?}", info.entries);
 
+        let registry = info.registry.clone();
         let mut package = self
             .registry
-            .load_package(&info.name)
+            .load_package(registry.as_deref(), &info.name)
             .await?
-            .unwrap_or_else(|| PackageInfo::new(info.name.clone()));
+            .unwrap_or_else(|| PackageInfo::new(registry.clone(), info.name.clone()));
 
         // If we're not initializing the package and a head was not explicitly specified,
         // updated to the latest checkpoint to get the latest known head.
         if !initializing && info.head.is_none() {
-            self.update_checkpoint(&self.api.latest_checkpoint().await?, [&mut package])
-                .await?;
+            self.update_checkpoint(
+                registry.as_deref(),
+                &self.api.latest_checkpoint(registry.as_deref()).await?,
+                [&mut package],
+            )
+            .await?;
 
             info.head = package.state.head().as_ref().map(|h| h.digest.clone());
         }
@@ -164,6 +190,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         let record = self
             .api
             .publish_package_record(
+                registry.as_deref(),
                 &log_id,
                 PublishRecordRequest {
                     package_name: Cow::Borrowed(&package.name),
@@ -228,12 +255,15 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
     /// Returns an error if the package record was rejected.
     pub async fn wait_for_publish(
         &self,
+        registry: Option<&str>,
         package: &PackageName,
         record_id: &RecordId,
         interval: Duration,
     ) -> ClientResult<()> {
         let log_id = LogId::package_log::<Sha256>(package);
-        let mut current = self.get_package_record(package, &log_id, record_id).await?;
+        let mut current = self
+            .get_package_record(registry, package, &log_id, record_id)
+            .await?;
 
         loop {
             match current.state {
@@ -252,7 +282,9 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                 }
                 PackageRecordState::Processing => {
                     tokio::time::sleep(interval).await;
-                    current = self.get_package_record(package, &log_id, record_id).await?;
+                    current = self
+                        .get_package_record(registry, package, &log_id, record_id)
+                        .await?;
                 }
             }
         }
@@ -262,9 +294,23 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
     pub async fn update(&self) -> ClientResult<()> {
         tracing::info!("updating all packages to latest checkpoint");
 
-        let mut updating = self.registry.load_packages().await?;
-        self.update_checkpoint(&self.api.latest_checkpoint().await?, &mut updating)
+        let mut updating = self.registry.load_packages(None).await?;
+        self.update_checkpoint(
+            None,
+            &self.api.latest_checkpoint(None).await?,
+            &mut updating,
+        )
+        .await?;
+
+        for registry in self.registry.list_import_registries().await? {
+            let mut updating = self.registry.load_packages(Some(&registry)).await?;
+            self.update_checkpoint(
+                Some(&registry),
+                &self.api.latest_checkpoint(Some(&registry)).await?,
+                &mut updating,
+            )
             .await?;
+        }
 
         Ok(())
     }
@@ -273,24 +319,47 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
     /// the latest registry checkpoint.
     pub async fn upsert<'a, I>(&self, packages: I) -> Result<(), ClientError>
     where
-        I: IntoIterator<Item = &'a PackageName>,
+        I: IntoIterator<Item = (Option<&'a str>, &'a PackageName)>,
         I::IntoIter: ExactSizeIterator,
     {
         tracing::info!("updating specific packages to latest checkpoint");
 
         let packages = packages.into_iter();
-        let mut updating = Vec::with_capacity(packages.len());
-        for package in packages {
-            updating.push(
-                self.registry
-                    .load_package(package)
-                    .await?
-                    .unwrap_or_else(|| PackageInfo::new(package.clone())),
-            );
+        let mut updating_registries: HashMap<Option<&str>, Vec<PackageInfo>> = HashMap::new();
+
+        for (registry, package_name) in packages {
+            if let Some(v) = updating_registries.get_mut(&registry) {
+                v.push(
+                    self.registry
+                        .load_package(registry, package_name)
+                        .await?
+                        .unwrap_or_else(|| {
+                            PackageInfo::new(registry.map(|s| s.to_string()), package_name.clone())
+                        }),
+                );
+            } else {
+                updating_registries.insert(
+                    registry,
+                    vec![self
+                        .registry
+                        .load_package(registry, package_name)
+                        .await?
+                        .unwrap_or_else(|| {
+                            PackageInfo::new(registry.map(|s| s.to_string()), package_name.clone())
+                        })],
+                );
+            }
         }
 
-        self.update_checkpoint(&self.api.latest_checkpoint().await?, &mut updating)
+        for (registry, updating) in updating_registries.iter_mut() {
+            let registry = *registry;
+            self.update_checkpoint(
+                registry,
+                &self.api.latest_checkpoint(registry).await?,
+                updating,
+            )
             .await?;
+        }
 
         Ok(())
     }
@@ -310,11 +379,12 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
     /// the resolved version.
     pub async fn download(
         &self,
+        registry: Option<&str>,
         name: &PackageName,
         requirement: &VersionReq,
     ) -> Result<Option<PackageDownload>, ClientError> {
-        tracing::info!("downloading package `{name}` with requirement `{requirement}`");
-        let info = self.fetch_package(name).await?;
+        tracing::info!("downloading package `{name}` with requirement `{requirement}` with Warg-Registry header: `{registry:?}`");
+        let info = self.fetch_package(registry, name).await?;
 
         match info.state.find_latest_release(requirement) {
             Some(release) => {
@@ -322,7 +392,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                     .content()
                     .context("invalid state: not yanked but missing content")?
                     .clone();
-                let path = self.download_content(&digest).await?;
+                let path = self.download_content(registry, &digest).await?;
                 Ok(Some(PackageDownload {
                     version: release.version.clone(),
                     digest,
@@ -344,11 +414,12 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
     /// the specified version.
     pub async fn download_exact(
         &self,
+        registry: Option<&str>,
         package: &PackageName,
         version: &Version,
     ) -> Result<PackageDownload, ClientError> {
-        tracing::info!("downloading version {version} of package `{package}`");
-        let info = self.fetch_package(package).await?;
+        tracing::info!("downloading version {version} of package `{package}` with Warg-Registry header: `{registry:?}`");
+        let info = self.fetch_package(registry, package).await?;
 
         let release =
             info.state
@@ -368,22 +439,27 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         Ok(PackageDownload {
             version: version.clone(),
             digest: digest.clone(),
-            path: self.download_content(digest).await?,
+            path: self.download_content(registry, digest).await?,
         })
     }
 
     async fn update_checkpoint<'a>(
         &self,
+        registry: Option<&str>,
         ts_checkpoint: &SerdeEnvelope<TimestampedCheckpoint>,
         packages: impl IntoIterator<Item = &mut PackageInfo>,
     ) -> Result<(), ClientError> {
         let checkpoint = &ts_checkpoint.as_ref().checkpoint;
         tracing::info!(
-            "updating to checkpoint log length `{}`",
+            "updating to checkpoint log length `{}` with Warg-Registry header: `{registry:?}`",
             checkpoint.log_length
         );
 
-        let mut operator = self.registry.load_operator().await?.unwrap_or_default();
+        let mut operator = self
+            .registry
+            .load_operator(registry)
+            .await?
+            .unwrap_or_default();
 
         // Map package names to package logs that need to be updated
         let mut packages = packages
@@ -407,15 +483,18 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         loop {
             let response: FetchLogsResponse = self
                 .api
-                .fetch_logs(FetchLogsRequest {
-                    log_length: checkpoint.log_length,
-                    operator: operator
-                        .head_fetch_token
-                        .as_ref()
-                        .map(|t| Cow::Borrowed(t.as_str())),
-                    limit: None,
-                    packages: Cow::Borrowed(&last_known),
-                })
+                .fetch_logs(
+                    registry,
+                    FetchLogsRequest {
+                        log_length: checkpoint.log_length,
+                        operator: operator
+                            .head_fetch_token
+                            .as_ref()
+                            .map(|t| Cow::Borrowed(t.as_str())),
+                        limit: None,
+                        packages: Cow::Borrowed(&last_known),
+                    },
+                )
                 .await
                 .map_err(|e| {
                     ClientError::translate_log_not_found(e, |id| {
@@ -528,6 +607,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         if !leafs.is_empty() {
             self.api
                 .prove_inclusion(
+                    registry,
                     InclusionRequest {
                         log_length: checkpoint.log_length,
                         leafs: leaf_indices,
@@ -538,9 +618,10 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
                 .await?;
         }
 
-        if let Some(from) = self.registry.load_checkpoint().await? {
+        if let Some(from) = self.registry.load_checkpoint(registry).await? {
             self.api
                 .prove_log_consistency(
+                    registry,
                     ConsistencyRequest {
                         from: from.as_ref().checkpoint.log_length,
                         to: ts_checkpoint.as_ref().checkpoint.log_length,
@@ -558,21 +639,31 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
             self.registry.store_package(package).await?;
         }
 
-        self.registry.store_checkpoint(ts_checkpoint).await?;
+        self.registry
+            .store_checkpoint(registry, ts_checkpoint)
+            .await?;
 
         Ok(())
     }
 
-    async fn fetch_package(&self, name: &PackageName) -> Result<PackageInfo, ClientError> {
-        match self.registry.load_package(name).await? {
+    async fn fetch_package(
+        &self,
+        registry: Option<&str>,
+        name: &PackageName,
+    ) -> Result<PackageInfo, ClientError> {
+        match self.registry.load_package(registry, name).await? {
             Some(info) => {
                 tracing::info!("log for package `{name}` already exists in storage");
                 Ok(info)
             }
             None => {
-                let mut info = PackageInfo::new(name.clone());
-                self.update_checkpoint(&self.api.latest_checkpoint().await?, [&mut info])
-                    .await?;
+                let mut info = PackageInfo::new(registry.map(|s| s.to_string()), name.clone());
+                self.update_checkpoint(
+                    registry,
+                    &self.api.latest_checkpoint(registry).await?,
+                    [&mut info],
+                )
+                .await?;
 
                 Ok(info)
             }
@@ -581,13 +672,14 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
 
     async fn get_package_record(
         &self,
+        registry: Option<&str>,
         package: &PackageName,
         log_id: &LogId,
         record_id: &RecordId,
     ) -> ClientResult<PackageRecord> {
         let record = self
             .api
-            .get_package_record(log_id, record_id)
+            .get_package_record(registry, log_id, record_id)
             .await
             .map_err(|e| {
                 ClientError::translate_log_not_found(e, |id| {
@@ -601,7 +693,11 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
         Ok(record)
     }
 
-    async fn download_content(&self, digest: &AnyHash) -> Result<PathBuf, ClientError> {
+    async fn download_content(
+        &self,
+        registry: Option<&str>,
+        digest: &AnyHash,
+    ) -> Result<PathBuf, ClientError> {
         match self.content.content_location(digest) {
             Some(path) => {
                 tracing::info!("content for digest `{digest}` already exists in storage");
@@ -610,7 +706,7 @@ impl<R: RegistryStorage, C: ContentStorage> Client<R, C> {
             None => {
                 self.content
                     .store_content(
-                        Box::pin(self.api.download_content(digest).await?),
+                        Box::pin(self.api.download_content(registry, digest).await?),
                         Some(digest),
                     )
                     .await?;
@@ -770,6 +866,15 @@ pub enum ClientError {
     PackageDoesNotExist {
         /// The missing package.
         name: PackageName,
+    },
+
+    /// The package namespace does not match case sensitive.
+    #[error("package namespace `{namespace}` does not match the correct case of the defined namespace `{defined}`")]
+    PackageNamespaceDoesNotMatchCase {
+        /// The requested namespace.
+        namespace: String,
+        /// The correct defined namespace.
+        defined: String,
     },
 
     /// The package version does not exist.

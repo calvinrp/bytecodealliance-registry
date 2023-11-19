@@ -44,6 +44,7 @@ async fn client_incrementally_fetches() -> Result<()> {
         .publish_with_info(
             &signing_key,
             PublishInfo {
+                registry: None,
                 name: name.clone(),
                 head: None,
                 entries: vec![PublishEntry::Init],
@@ -56,6 +57,7 @@ async fn client_incrementally_fetches() -> Result<()> {
             .publish_with_info(
                 &signing_key,
                 PublishInfo {
+                    registry: None,
                     name: name.clone(),
                     head: Some(head),
                     entries: vec![PublishEntry::Release {
@@ -68,7 +70,7 @@ async fn client_incrementally_fetches() -> Result<()> {
     }
 
     client
-        .wait_for_publish(&name, &head, Duration::from_millis(100))
+        .wait_for_publish(None, &name, &head, Duration::from_millis(100))
         .await?;
 
     drop(client);
@@ -84,16 +86,16 @@ async fn client_incrementally_fetches() -> Result<()> {
     client.update().await?;
 
     // Fetch the package log
-    client.upsert([&name]).await?;
+    client.upsert([(None, &name)]).await?;
 
     // Ensure that the package is in the packages list
-    let packages = client.registry().load_packages().await?;
+    let packages = client.registry().load_packages(None).await?;
     assert_eq!(packages[0].name.as_ref(), PACKAGE_NAME);
 
     // Ensure the package log exists and has releases with all with the same digest
     let package = client
         .registry()
-        .load_package(&name)
+        .load_package(None, &name)
         .await?
         .context("package does not exist in client storage")?;
 

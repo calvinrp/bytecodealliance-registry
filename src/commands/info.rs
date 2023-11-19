@@ -27,17 +27,37 @@ impl InfoCommand {
         println!("\npackages in client storage:");
         match self.package {
             Some(package) => {
-                if let Some(info) = client.registry().load_package(&package).await? {
+                let registry = if let Some(registry) = self.common.registry {
+                    // specified registry with an arg so use that
+                    Some(registry)
+                } else {
+                    client.imported_registry(&package).await?
+                };
+
+                if let Some(info) = client
+                    .registry()
+                    .load_package(registry.as_deref(), &package)
+                    .await?
+                {
                     Self::print_package_info(&info);
                 }
             }
             None => {
                 client
                     .registry()
-                    .load_packages()
+                    .load_packages(None)
                     .await?
                     .iter()
                     .for_each(Self::print_package_info);
+
+                for registry in client.registry().list_import_registries().await? {
+                    client
+                        .registry()
+                        .load_packages(Some(&registry))
+                        .await?
+                        .iter()
+                        .for_each(Self::print_package_info);
+                }
             }
         }
 

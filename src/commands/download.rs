@@ -26,8 +26,16 @@ impl DownloadCommand {
 
         println!("downloading package `{name}`...", name = self.name);
 
+        let registry = if let Some(registry) = self.common.registry {
+            // specified registry with an arg so use that
+            Some(registry)
+        } else {
+            client.imported_registry(&self.name).await?
+        };
+
         let res = client
             .download(
+                registry.as_deref(),
                 &self.name,
                 self.version.as_ref().unwrap_or(&VersionReq::STAR),
             )

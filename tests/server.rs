@@ -41,7 +41,7 @@ mod postgres;
 async fn test_initial_checkpoint(config: &Config) -> Result<()> {
     let client = api::Client::new(config.default_url.as_ref().unwrap())?;
 
-    let ts_checkpoint = client.latest_checkpoint().await?;
+    let ts_checkpoint = client.latest_checkpoint(None).await?;
     let checkpoint = &ts_checkpoint.as_ref().checkpoint;
 
     // There should be only a single log entry (the initial operator log entry)
@@ -84,9 +84,9 @@ async fn test_component_publishing(config: &Config) -> Result<()> {
     .await?;
 
     // Assert that the package can be downloaded
-    client.upsert([&name]).await?;
+    client.upsert([(None, &name)]).await?;
     let download = client
-        .download(&name, &PACKAGE_VERSION.parse()?)
+        .download(None, &name, &PACKAGE_VERSION.parse()?)
         .await?
         .context("failed to resolve package")?;
 
@@ -109,7 +109,10 @@ async fn test_component_publishing(config: &Config) -> Result<()> {
     }
 
     // Assert that a different version can't be downloaded
-    assert!(client.download(&name, &"0.2.0".parse()?).await?.is_none());
+    assert!(client
+        .download(None, &name, &"0.2.0".parse()?)
+        .await?
+        .is_none());
 
     Ok(())
 }
@@ -137,6 +140,7 @@ async fn test_package_yanking(config: &Config) -> Result<()> {
         .publish_with_info(
             &signing_key,
             PublishInfo {
+                registry: None,
                 name: name.clone(),
                 head: None,
                 entries: vec![PublishEntry::Yank {
@@ -146,12 +150,14 @@ async fn test_package_yanking(config: &Config) -> Result<()> {
         )
         .await?;
     client
-        .wait_for_publish(&name, &record_id, Duration::from_millis(100))
+        .wait_for_publish(None, &name, &record_id, Duration::from_millis(100))
         .await?;
 
     // Assert that the package is yanked
-    client.upsert([&name]).await?;
-    let opt = client.download(&name, &PACKAGE_VERSION.parse()?).await?;
+    client.upsert([(None, &name)]).await?;
+    let opt = client
+        .download(None, &name, &PACKAGE_VERSION.parse()?)
+        .await?;
     assert!(opt.is_none(), "expected no download, got {opt:?}");
     Ok(())
 }
@@ -174,9 +180,9 @@ async fn test_wit_publishing(config: &Config) -> Result<()> {
     .await?;
 
     // Assert that the package can be downloaded
-    client.upsert([&name]).await?;
+    client.upsert([(None, &name)]).await?;
     let download = client
-        .download(&name, &PACKAGE_VERSION.parse()?)
+        .download(None, &name, &PACKAGE_VERSION.parse()?)
         .await?
         .context("failed to resolve package")?;
 
@@ -199,7 +205,10 @@ async fn test_wit_publishing(config: &Config) -> Result<()> {
     }
 
     // Assert that a different version can't be downloaded
-    assert!(client.download(&name, &"0.2.0".parse()?).await?.is_none());
+    assert!(client
+        .download(None, &name, &"0.2.0".parse()?)
+        .await?
+        .is_none());
 
     Ok(())
 }
@@ -238,7 +247,7 @@ async fn test_wasm_content_policy(config: &Config) -> Result<()> {
 
             // Waiting on the publish should fail with a rejection as well
             match client
-                .wait_for_publish(&name, &record_id, Duration::from_millis(100))
+                .wait_for_publish(None, &name, &record_id, Duration::from_millis(100))
                 .await
                 .expect_err("expected wait for publish to fail")
             {
@@ -438,10 +447,10 @@ async fn test_custom_content_url(config: &Config) -> Result<()> {
     )
     .await?;
 
-    client.upsert([&name]).await?;
+    client.upsert([(None, &name)]).await?;
     let package = client
         .registry()
-        .load_package(&name)
+        .load_package(None, &name)
         .await?
         .expect("expected the package to exist");
     package
@@ -451,7 +460,7 @@ async fn test_custom_content_url(config: &Config) -> Result<()> {
 
     // Look up the content URL for the record
     let client = api::Client::new(config.default_url.as_ref().unwrap())?;
-    let ContentSourcesResponse { content_sources } = client.content_sources(&digest).await?;
+    let ContentSourcesResponse { content_sources } = client.content_sources(None, &digest).await?;
     assert_eq!(content_sources.len(), 1);
     let sources = content_sources
         .get(&digest)
@@ -513,7 +522,7 @@ async fn test_fetch_package_names(config: &Config) -> Result<()> {
 async fn test_get_ledger(config: &Config) -> Result<()> {
     let client = api::Client::new(config.default_url.as_ref().unwrap())?;
 
-    let ts_checkpoint = client.latest_checkpoint().await?;
+    let ts_checkpoint = client.latest_checkpoint(None).await?;
     let checkpoint = &ts_checkpoint.as_ref().checkpoint;
 
     let url = Url::parse(config.default_url.as_ref().unwrap())?

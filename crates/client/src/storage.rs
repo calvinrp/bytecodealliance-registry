@@ -33,29 +33,40 @@ pub trait RegistryStorage: Send + Sync {
     async fn reset(&self, all_registries: bool) -> Result<()>;
 
     /// Loads most recent checkpoint
-    async fn load_checkpoint(&self) -> Result<Option<SerdeEnvelope<TimestampedCheckpoint>>>;
+    async fn load_checkpoint(
+        &self,
+        registry: Option<&str>,
+    ) -> Result<Option<SerdeEnvelope<TimestampedCheckpoint>>>;
 
     /// Stores most recent checkpoint
     async fn store_checkpoint(
         &self,
+        registry: Option<&str>,
         ts_checkpoint: &SerdeEnvelope<TimestampedCheckpoint>,
     ) -> Result<()>;
 
     /// Loads the operator information from the storage.
     ///
     /// Returns `Ok(None)` if the information is not present.
-    async fn load_operator(&self) -> Result<Option<OperatorInfo>>;
+    async fn load_operator(&self, registry: Option<&str>) -> Result<Option<OperatorInfo>>;
 
     /// Stores the operator information in the storage.
     async fn store_operator(&self, operator: OperatorInfo) -> Result<()>;
 
     /// Loads the package information for all packages in the storage.
-    async fn load_packages(&self) -> Result<Vec<PackageInfo>>;
+    async fn load_packages(&self, registry: Option<&str>) -> Result<Vec<PackageInfo>>;
+
+    /// Loads the list of all import registries in the storage.
+    async fn list_import_registries(&self) -> Result<Vec<String>>;
 
     /// Loads the package information from the storage.
     ///
     /// Returns `Ok(None)` if the information is not present.
-    async fn load_package(&self, package: &PackageName) -> Result<Option<PackageInfo>>;
+    async fn load_package(
+        &self,
+        registry: Option<&str>,
+        package: &PackageName,
+    ) -> Result<Option<PackageInfo>>;
 
     /// Stores the package information in the storage.
     async fn store_package(&self, info: &PackageInfo) -> Result<()>;
@@ -112,6 +123,10 @@ pub trait ContentStorage: Send + Sync {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct OperatorInfo {
+    /// If an imported registry namespace package, the registry identifier
+    /// (expected to be a domain name) that is used in the `Warg-Registry` header.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub registry: Option<String>,
     /// The current operator log state
     #[serde(default)]
     pub state: operator::LogState,
@@ -127,6 +142,10 @@ pub struct OperatorInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackageInfo {
+    /// If an imported registry namespace package, the registry identifier
+    /// (expected to be a domain name) that is used in the `Warg-Registry` header.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub registry: Option<String>,
     /// The package name to publish.
     /// TODO: drop alias after sufficient time according to release policy.
     #[serde(alias = "id")]
@@ -147,8 +166,9 @@ pub struct PackageInfo {
 
 impl PackageInfo {
     /// Creates a new package info for the given package name.
-    pub fn new(name: impl Into<PackageName>) -> Self {
+    pub fn new(registry: Option<String>, name: impl Into<PackageName>) -> Self {
         Self {
+            registry,
             name: name.into(),
             checkpoint: None,
             state: package::LogState::default(),
@@ -196,6 +216,10 @@ pub enum PublishEntry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PublishInfo {
+    /// If an imported registry namespace package, the registry identifier
+    /// (expected to be a domain name) that is used in the `Warg-Registry` header.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub registry: Option<String>,
     /// The package name being published.
     /// TODO: drop alias after sufficient time according to release policy.
     #[serde(alias = "id")]

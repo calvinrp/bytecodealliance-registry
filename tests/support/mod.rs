@@ -197,6 +197,7 @@ pub async fn publish(
         .publish_with_info(
             signing_key,
             PublishInfo {
+                registry: None,
                 name: name.clone(),
                 head: None,
                 entries,
@@ -205,7 +206,7 @@ pub async fn publish(
         .await?;
 
     client
-        .wait_for_publish(name, &record_id, Duration::from_millis(100))
+        .wait_for_publish(None, name, &record_id, Duration::from_millis(100))
         .await?;
 
     Ok(digest)
