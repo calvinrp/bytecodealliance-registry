@@ -782,8 +782,8 @@ components:
             If the last known package record fetch token is `null`, records are returned from the start of the log.
           patternProperties:
             "^[a-z0-9-]+:[a-f0-9]+$":
-              $ref: "#/components/schemas/AnyHash"
-              description: The last known package record identifier.
+              type: string
+              description: The last known package record fetch token.
               nullable: true
           example:
             "sha256:7d865e959b2466918c9863afca942d0fb89d7c9ac0c99bafc3749504ded9773": "sha256:7d865e959b2466918c9863afca942d0fb89d7c9ac0c99bafc3749504ded97730"
