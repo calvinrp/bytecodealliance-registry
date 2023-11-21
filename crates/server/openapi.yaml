@@ -779,7 +779,7 @@ components:
           description: |
             The map of package log identifier to last known package record fetch token.
 
-            If the last package record identifier is null, records are returned from the start of the log.
+            If the last known package record fetch token is `null`, records are returned from the start of the log.
           patternProperties:
             "^[a-z0-9-]+:[a-f0-9]+$":
               $ref: "#/components/schemas/AnyHash"
